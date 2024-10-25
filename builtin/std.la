@@ -1,0 +1,14 @@
+native fun print(arg: any)
+
+native fun stringify(arg: any): str
+
+native fun input(): str
+
+native fun assert_eq(l: any, r: any)
+
+native fun assert_neq(l: any, r: any)
+
+native rec str() {
+  
+}
+

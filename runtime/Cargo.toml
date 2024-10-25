@@ -1,0 +1,15 @@
+[package]
+name = "runtime"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "lantern_runtime"
+
+[dependencies]
+parse = { path = "../parse" }
+lang = { path = "../lang" }
+builtin = { path = "../builtin" }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+

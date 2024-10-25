@@ -1,0 +1,15 @@
+[package]
+name = "builtin"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "lantern_builtin"
+
+[dependencies]
+parse = { path = "../parse" }
+lang = { path = "../lang" }
+macros = { path = "../macros" }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+

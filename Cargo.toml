@@ -1,0 +1,16 @@
+[workspace]
+members = [
+  "lang",
+  "parse",
+  "runtime",
+  "builtin",
+  "macros",
+  "lantern",
+  "cli",
+]
+resolver = "2"
+
+[workspace.dependencies]
+thiserror = "1"
+anyhow = "1"
+

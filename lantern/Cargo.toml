@@ -1,0 +1,22 @@
+[package]
+name = "lantern"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "lantern"
+
+[dependencies]
+lang = { path = "../lang" }
+parse = { path = "../parse" }
+runtime = { path = "../runtime" }
+builtin = { path = "../builtin" }
+macros = { path = "../macros" }
+
+[features]
+lang = ["parse"]
+parse = []
+runtime = ["parse", "lang"]
+builtin = ["parse", "lang"]
+macros = ["parse", "lang"]
+

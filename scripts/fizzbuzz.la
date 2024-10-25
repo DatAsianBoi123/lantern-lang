@@ -1,0 +1,28 @@
+// performs a fizzbuzz up until some user-defined max number
+
+print('number to go to:')
+val max: num = input().parse_int() ? {
+  print('not a number')
+  ret
+}
+print('going until ' + stringify(max) + '.')
+
+val num: num = 1
+
+while (num <= max) {
+  val msg: str = stringify(num)
+
+  if (num % 3 == 0 || num % 5 == 0) {
+    val new: str = ''
+
+    if (num % 3 == 0) { new = new + 'fizz' }
+    if (num % 5 == 0) { new = new + 'buzz' }
+
+    msg = new
+  }
+
+  print(msg)
+
+  num = num + 1
+}
+

@@ -1,0 +1,28 @@
+assert_eq(some(10) | 50, some(50))
+assert_eq(none | 50, none)
+
+assert_eq(some(10) |? { ret in + 5 }, some(15))
+assert_eq(none |? { ret in + 5 }, none)
+
+assert_eq(some(10) ~ 5, 10)
+assert_eq(none ~ 5, 5)
+
+assert_eq(some(10) ~? { ret 5 }, 10)
+assert_eq(none ~? { ret 5 }, 5)
+
+fun try_add(left: option(num), right: num): num {
+    ret left ? { ret -1 } + right
+}
+
+fun try_add_options(left: option(num), right: option(num)): option(num) {
+    ret some(left? + right?)
+}
+
+assert_eq(try_add(some(10), 5), 15)
+assert_eq(try_add(none, 5), -1)
+
+assert_eq(try_add_options(some(10), some(15)), some(25))
+assert_eq(try_add_options(none, some(15)), none)
+assert_eq(try_add_options(some(10), none), none)
+assert_eq(try_add_options(none, none), none)
+

@@ -1,0 +1,21 @@
+val a: num = 0
+val b: num = 0
+
+assert_eq(a, b)
+
+a = 10
+
+assert_neq(a, b)
+
+b = 10
+
+assert_eq(a, b)
+
+val c: num = 50
+
+assert_neq(a, c)
+
+a = c
+
+assert_eq(a, c)
+

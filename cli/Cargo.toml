@@ -1,0 +1,15 @@
+[package]
+name = "cli"
+version = "0.1.0"
+edition = "2021"
+description = "A modern, interpreted, statically typed scripting language"
+
+[[bin]]
+name = "lantern"
+path = "src/main.rs"
+
+[dependencies]
+lantern = { path = "../lantern", features = ["runtime", "builtin"] }
+anyhow = { workspace = true }
+clap = { version = "4", features = ["derive"] }
+
