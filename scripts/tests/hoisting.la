@@ -1,0 +1,32 @@
+assert_eq(hoisted_fun(), 1)
+assert_eq(hoisted_2_fun(), hoisted_fun() + 1)
+assert_eq(HoistedRec::('hello', 'world').concat(), 'helloworld')
+
+fun hoisted_2_fun(): num {
+  ret hoisted_fun() + 1
+}
+
+fun hoisted_fun(): num {
+  ret 1
+}
+
+rec HoistedRec(a: str, b: str) {
+  fun concat(): str {
+    ret self.a + self.b
+  }
+}
+
+{
+  {
+    assert_eq(outside_hoisted(), 10)
+  }
+
+  fun outside_hoisted(): num {
+    ret another_hoisted()
+
+    fun another_hoisted(): num {
+      ret 10
+    }
+  }
+}
+
