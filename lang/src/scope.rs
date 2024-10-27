@@ -50,7 +50,6 @@ impl RuntimeContext {
 }
 
 #[derive(Debug, Clone)]
-#[non_exhaustive]
 pub enum Scope {
     Context {
         // TODO: find a better way to do this
