@@ -46,9 +46,10 @@ pub enum LanternType {
     Num,
     Bool,
     Nil,
+    Option(Option<Box<LanternType>>),
+    Result(Option<Box<LanternType>>, Option<Box<LanternType>>),
     // TODO: path struct
     Custom(String),
-    Option(Option<Box<LanternType>>),
     Any,
 }
 
@@ -66,6 +67,15 @@ impl Read<TokenStream, Diagnostics> for LanternType {
                 let type_tokens = read_group_delimiter(stream, Delimiter::Paren)?.tokens;
                 Ok(Self::Option(Some(Box::new(TokenStream::new(type_tokens).read()?))))
             },
+            "result" => {
+                let type_group = read_group_delimiter(stream, Delimiter::Paren)?;
+                let group_span = type_group.span;
+                let mut types = read_delimited(&mut TokenStream::new(type_group.tokens), PunctKind::Comma)?;
+
+                if types.len() != 2 { return Err(diagnostic!(Error, group_span => ExpectedError("ok and err type".to_string())).into()); };
+
+                Ok(Self::Result(Some(Box::new(types.swap_remove(0))), Some(Box::new(types.swap_remove(0)))))
+            },
             _ => Ok(Self::Custom(ident.name)),
         }
     }
@@ -77,6 +87,9 @@ impl LanternType {
             (_, Self::Any) => true,
             (Self::Option(Some(l)), Self::Option(Some(r))) => l.applies_to(r),
             (Self::Option(_), Self::Option(_)) => true,
+            (Self::Result(Some(l_ok), Some(l_err)), Self::Result(Some(r_ok), Some(r_err))) => l_ok.applies_to(r_ok) && l_err.applies_to(r_err),
+            (Self::Result(Some(l), _), Self::Result(Some(r), _)) |
+                (Self::Result(_, Some(l)), Self::Result(_, Some(r))) => l.applies_to(r),
             (_, _) => self == other,
         }
     }
@@ -92,6 +105,10 @@ impl Display for LanternType {
             Self::Custom(name) => name,
             Self::Option(Some(inner)) => &format!("option({inner})"),
             Self::Option(None) => "option({unknown})",
+            Self::Result(Some(ok), Some(err)) => &format!("result({ok}, {err})"),
+            Self::Result(Some(ok), None) => &format!("result({ok}, {{unknown}})"),
+            Self::Result(None, Some(err)) => &format!("result({{uknown}}, {err})"),
+            Self::Result(None, None) => "result({unknown}, {unknown})",
             Self::Any => "any",
         };
         f.write_str(str)

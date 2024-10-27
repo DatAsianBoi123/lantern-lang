@@ -1,7 +1,7 @@
 use std::{cell::RefCell, fmt::{Display, Formatter}, rc::Rc};
 
 use error::RuntimeError;
-use lantern_parse::{ast::{LanternType, Stmt}, tokenizer::{KeywordKind, Literal, LiteralKind}};
+use lantern_parse::{ast::{LanternType, Stmt}, tokenizer::KeywordKind};
 use record::{LanternAny, LanternCustomRecord, LanternMethod, LanternRecord};
 use scope::Scope;
 
@@ -15,6 +15,7 @@ pub enum LanternValue {
     Num(f64),
     Bool(bool),
     Option(Option<Box<LanternValue>>),
+    Result(Result<Box<LanternValue>, Box<LanternValue>>),
     Custom(LanternCustomRecord),
     Null,
 }
@@ -28,6 +29,8 @@ impl Display for LanternValue {
             Self::Custom(custom) => custom.fmt(f),
             Self::Option(Some(value)) => write!(f, "some({value})"),
             Self::Option(None) => write!(f, "none"),
+            Self::Result(Ok(ok)) => write!(f, "ok({ok})"),
+            Self::Result(Err(err)) => write!(f, "err({err})"),
             Self::Null => write!(f, "null"),
         }
     }
@@ -41,6 +44,8 @@ impl LanternValue {
             Self::Bool(_) => LanternType::Bool,
             Self::Custom(LanternCustomRecord { r#type, .. }) => r#type.clone(),
             Self::Option(option) => LanternType::Option(option.as_ref().map(|value| Box::new(value.r#type()))),
+            Self::Result(Ok(ok)) => LanternType::Result(Some(Box::new(ok.r#type())), None),
+            Self::Result(Err(err)) => LanternType::Result(None, Some(Box::new(err.r#type()))),
             Self::Null => LanternType::Nil,
         }
     }
@@ -52,6 +57,9 @@ impl LanternValue {
             Self::Bool(bool) => bool::field(name).map(|field| (field.get)(bool)),
             // TODO: get rid of clone
             Self::Option(option) => Option::field(name).map(|field| (field.get)(&option.as_ref().map(|value| LanternAny(*value.clone())))),
+            Self::Result(result) => Result::field(name).map(|field| (field.get)(&result.as_ref()
+                    .map(|ok| LanternAny(*ok.clone()))
+                    .map_err(|err| LanternAny(*err.clone())))),
             Self::Custom(custom) => custom.fields.get(name).cloned(),
             Self::Null => <()>::field(name).map(|field| (field.get)(&())),
         }
@@ -63,6 +71,7 @@ impl LanternValue {
             Self::Num(_) => f64::method(name),
             Self::Bool(_) => bool::method(name),
             Self::Option(_) => <Option<LanternAny>>::method(name),
+            Self::Result(_) => <Result<LanternAny, LanternAny>>::method(name),
             Self::Custom(custom) => custom.methods.get(name).cloned(),
             Self::Null => <()>::method(name),
         }

@@ -2,7 +2,7 @@ use std::{cell::RefCell, ops::ControlFlow, rc::Rc};
 
 use lantern_builtin::op::{perform_binary_op, perform_unary_op};
 use lantern_lang::{error::{InvalidReturnType, MismatchedTypes, RuntimeError, UnknownItem}, record::{LanternMethod, LanternRecordFrame}, runtime_error, scope::{RuntimeContext, Scope}, LanternFunction, LanternFunctionArg, LanternFunctionBody, LanternValue, LanternVariable, ReturnType};
-use lantern_parse::{ast::{expr::{AccessField, BinaryOperation, Branch, CallMethod, CoerceBlock, Expr, FunCall, NewRec, PipeBlock, UnaryOperation}, Block, FunArgs, FunDefinition, IfBranch, IfStatement, LanternType, LoopStatement, RecDefinition, Ret, Stmt, ValAssignment, ValBinding, WhileStatement}, error::ExpectedError, tokenizer::Ident};
+use lantern_parse::{ast::{expr::{AccessField, BinaryOperation, Branch, CallMethod, CoerceBlock, Expr, FunCall, NewRec, PipeBlock, UnaryOperation}, Block, FunArgs, FunDefinition, IfBranch, IfStatement, LanternType, LoopStatement, RecDefinition, Ret, Stmt, ValAssignment, ValBinding, WhileStatement}, error::ExpectedError, read::{ItemStream, TokenStream}, tokenizer::{Ident, Literal}};
 
 pub type Result<T> = std::result::Result<T, RuntimeError>;
 pub type ScopeMut = Rc<RefCell<Scope>>;
@@ -170,17 +170,10 @@ pub fn eval_expr(expr: Expr, scope: ScopeMut) -> Result<ControlFlow<ReturnType, 
         Expr::PipeBlock(PipeBlock { base, block: Block { stmts } }) => {
             let base = eval_or_break!(*base, scope.clone());
             let value = match base {
-                LanternValue::Option(Some(val)) => {
-                    let mut context = RuntimeContext::new();
-                    context.add_variable(LanternVariable { name: "in".to_string(), r#type: val.r#type(), value: *val });
-
-                    match execute(stmts, Rc::new(RefCell::new(Scope::nested(scope.clone(), context))))? {
-                        ReturnType::Return(ret) => LanternValue::Option(Some(Box::new(ret))),
-                        ReturnType::None => return Err(RuntimeError::new(ExpectedError("return".to_string()))),
-                        ret_type => return Err(RuntimeError::new(InvalidReturnType(ret_type))),
-                    }
-                },
-                LanternValue::Option(None) => base,
+                LanternValue::Option(Some(val))=> LanternValue::Option(Some(Box::new(in_block(*val, stmts, scope.clone())?))),
+                LanternValue::Result(Ok(val)) => LanternValue::Result(Ok(Box::new(in_block(*val, stmts, scope.clone())?))),
+                LanternValue::Option(None) | LanternValue::Result(Err(_)) => base,
+                // TODO: error
                 _ => return Err(RuntimeError::new(MismatchedTypes(LanternType::Option(None), base.r#type()))),
             };
 
@@ -189,21 +182,10 @@ pub fn eval_expr(expr: Expr, scope: ScopeMut) -> Result<ControlFlow<ReturnType, 
         Expr::CoerceBlock(CoerceBlock { base, block: Block { stmts } }) => {
             let base = eval_or_break!(*base, scope.clone());
             let value = match base {
-                LanternValue::Option(None) => {
-                    let mut context = RuntimeContext::new();
-                    context.add_variable(LanternVariable {
-                        name: "in".to_string(),
-                        r#type: LanternType::Nil,
-                        value: LanternValue::Null,
-                    });
-
-                    match execute(stmts, Rc::new(RefCell::new(Scope::nested(scope.clone(), context))))? {
-                        ReturnType::Return(ret) => ret,
-                        ReturnType::None => return Err(RuntimeError::new(ExpectedError("return".to_string()))),
-                        ret_type => return Err(RuntimeError::new(InvalidReturnType(ret_type))),
-                    }
-                },
-                LanternValue::Option(Some(val)) => *val,
+                LanternValue::Option(None) => in_block(LanternValue::Null, stmts, scope.clone())?,
+                LanternValue::Result(Err(err)) => in_block(*err, stmts, scope.clone())?,
+                LanternValue::Option(Some(val)) | LanternValue::Result(Ok(val)) => *val,
+                // TODO: error
                 _ => return Err(RuntimeError::new(MismatchedTypes(LanternType::Option(None), base.r#type()))),
             };
 
@@ -212,20 +194,11 @@ pub fn eval_expr(expr: Expr, scope: ScopeMut) -> Result<ControlFlow<ReturnType, 
         Expr::Branch(Branch { base, block }) => {
             let base = eval_or_break!(*base, scope.clone());
             match (base, block) {
-                (LanternValue::Option(Some(val)), _) => Ok(ControlFlow::Continue(*val)),
-                (LanternValue::Option(None), Some(Block { stmts })) => {
-                    let mut context = RuntimeContext::new();
-                    context.add_variable(LanternVariable {
-                        name: "in".to_string(),
-                        r#type: LanternType::Nil,
-                        value: LanternValue::Null,
-                    });
-                    match execute(stmts, Rc::new(RefCell::new(Scope::nested(scope.clone(), context))))? {
-                        ReturnType::None => Err(RuntimeError::new(ExpectedError("return".to_string()))),
-                        ret_type => Ok(ControlFlow::Break(ret_type)),
-                    }
-                },
-                (LanternValue::Option(None), None) => Ok(ControlFlow::Break(ReturnType::Return(LanternValue::Option(None)))),
+                (LanternValue::Option(Some(val)) | LanternValue::Result(Ok(val)), _) => Ok(ControlFlow::Continue(*val)),
+                (LanternValue::Option(None), Some(Block { stmts })) => in_block_ret(LanternValue::Null, stmts, scope.clone()).map(ControlFlow::Break),
+                (LanternValue::Result(Err(err)), Some(Block { stmts })) => in_block_ret(*err, stmts, scope.clone()).map(ControlFlow::Break),
+                (ret @ LanternValue::Option(None) | ret @ LanternValue::Result(Err(_)), None) => Ok(ControlFlow::Break(ReturnType::Return(ret))),
+                // TODO: error
                 (base, _) => Err(RuntimeError::new(MismatchedTypes(LanternType::Option(None), base.r#type()))),
             }
         },
@@ -312,5 +285,26 @@ fn eval_fun(scope: ScopeMut, args: Vec<Expr>, function: LanternFunction) -> Resu
     if !ret.r#type().applies_to(&function.ret_type) { return Err(RuntimeError::new(MismatchedTypes(function.ret_type, ret.r#type()))); };
 
     Ok(ControlFlow::Continue(ret))
+}
+
+fn in_block(in_var: LanternValue, stmts: Vec<Stmt>, scope: ScopeMut) -> Result<LanternValue> {
+    let mut context = RuntimeContext::new();
+    context.add_variable(LanternVariable { name: "in".to_string(), r#type: in_var.r#type(), value: in_var });
+
+    match execute(stmts, Rc::new(RefCell::new(Scope::nested(scope.clone(), context))))? {
+        ReturnType::Return(ret) => Ok(ret),
+        ReturnType::None => Err(RuntimeError::new(ExpectedError("return".to_string()))),
+        ret_type => Err(RuntimeError::new(InvalidReturnType(ret_type))),
+    }
+}
+
+fn in_block_ret(in_var: LanternValue, stmts: Vec<Stmt>, scope: ScopeMut) -> Result<ReturnType> {
+    let mut context = RuntimeContext::new();
+    context.add_variable(LanternVariable { name: "in".to_string(), r#type: in_var.r#type(), value: in_var });
+
+    match execute(stmts, Rc::new(RefCell::new(Scope::nested(scope.clone(), context))))? {
+        ReturnType::None => Err(RuntimeError::new(ExpectedError("return".to_string()))),
+        ret_type => Ok(ret_type),
+    }
 }
 

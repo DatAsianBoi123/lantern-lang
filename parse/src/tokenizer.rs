@@ -356,6 +356,8 @@ pub enum LiteralKind {
     // TODO: find a better way to do this
     Some(Vec<Token>),
     None,
+    Ok(Vec<Token>),
+    Err(Vec<Token>),
     Null,
 }
 
@@ -422,14 +424,20 @@ impl Read<FileStream, Recoverable<Diagnostics>> for LiteralKind {
             "true" => Some(Ok(LiteralKind::Bool(true))),
             "false" => Some(Ok(LiteralKind::Bool(false))),
             "null" => Some(Ok(LiteralKind::Null)),
-            "some" => {
+            "some" | "ok" | "err" => {
                 stream.jump();
                 let group: Group = stream.read().map_err(Recoverable::Fatal)?;
                 if group.delimiter != Delimiter::Paren {
                     return Err(Recoverable::Fatal(diagnostic!(Error, group.span => ExpectedError("parenthesis after some literal".to_string())).into()));
                 };
 
-                Some(Ok(LiteralKind::Some(group.tokens)))
+                let kind = match keyword_lit.as_ref() {
+                    "some" => LiteralKind::Some(group.tokens),
+                    "ok" => LiteralKind::Ok(group.tokens),
+                    "err" => LiteralKind::Err(group.tokens),
+                    _ => unreachable!(),
+                };
+                Some(Ok(kind))
             },
             "none" => Some(Ok(LiteralKind::None)),
             _ => None,

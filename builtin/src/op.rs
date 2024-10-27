@@ -53,7 +53,8 @@ pub fn perform_binary_op(left: LanternValue, op: BinaryOperator, right: LanternV
             let right_type = right.r#type();
             match (left, right) {
                 (LanternValue::Option(Some(_)), right) => Ok(LanternValue::Option(Some(Box::new(right)))),
-                (LanternValue::Option(None), _) => Ok(LanternValue::Option(None)),
+                (LanternValue::Result(Ok(_)), right) => Ok(LanternValue::Result(Ok(Box::new(right)))),
+                (ret @ LanternValue::Option(None) | ret @ LanternValue::Result(Err(_)), _) => Ok(ret),
                 (_, _) => Err(RuntimeError::new(InvalidOpTypes::new_binary(op, left_type, right_type))),
             }
         },
@@ -62,8 +63,8 @@ pub fn perform_binary_op(left: LanternValue, op: BinaryOperator, right: LanternV
             let left_type = left.r#type();
             let right_type = right.r#type();
             match (left, right) {
-                (LanternValue::Option(Some(left)), _) => Ok(*left),
-                (LanternValue::Option(None), right) => Ok(right),
+                (LanternValue::Option(Some(left)) | LanternValue::Result(Ok(left)), _) => Ok(*left),
+                (LanternValue::Option(None) | LanternValue::Result(Err(_)), right) => Ok(right),
                 (_, _) => Err(RuntimeError::new(InvalidOpTypes::new_binary(op, left_type, right_type))),
             }
         }
