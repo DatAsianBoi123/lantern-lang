@@ -119,7 +119,30 @@ pub fn eval_expr(expr: Expr, scope: ScopeMut) -> Result<ControlFlow<ReturnType, 
                 .map(LanternValue::Custom)
                 .map(ControlFlow::Continue)
         },
-        Expr::Lit(lit) => Ok(ControlFlow::Continue(lit.into())),
+        Expr::Lit(Literal { kind, .. }) => {
+            use lantern_parse::tokenizer::LiteralKind as L;
+
+            let val = match kind {
+                L::String(str) => LanternValue::String(str),
+                L::Num(num) => LanternValue::Num(num),
+                L::Bool(bool) => LanternValue::Bool(bool),
+                L::Some(tokens) => {
+                    let expr = TokenStream::new(tokens).read().map_err(RuntimeError::new)?;
+                    LanternValue::Option(Some(Box::new(eval_or_break!(expr, scope.clone()))))
+                },
+                L::Ok(tokens) => {
+                    let expr = TokenStream::new(tokens).read().map_err(RuntimeError::new)?;
+                    LanternValue::Result(Ok(Box::new(eval_or_break!(expr, scope.clone()))))
+                },
+                L::Err(tokens) => {
+                    let expr = TokenStream::new(tokens).read().map_err(RuntimeError::new)?;
+                    LanternValue::Result(Err(Box::new(eval_or_break!(expr, scope.clone()))))
+                },
+                L::None => LanternValue::Option(None),
+                L::Null => LanternValue::Null,
+            };
+            Ok(ControlFlow::Continue(val))
+        },
         Expr::Val(Ident { name, .. }) => scope.borrow().variable(&name)
             .map(|var| ControlFlow::Continue(var.value))
             .ok_or_else(|| RuntimeError::new(UnknownItem::Variable)),

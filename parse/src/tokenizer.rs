@@ -353,6 +353,9 @@ pub enum LiteralKind {
     String(String),
     Num(f64),
     Bool(bool),
+    // TODO: find a better way to do this
+    Some(Vec<Token>),
+    None,
     Null,
 }
 
@@ -419,6 +422,16 @@ impl Read<FileStream, Recoverable<Diagnostics>> for LiteralKind {
             "true" => Some(Ok(LiteralKind::Bool(true))),
             "false" => Some(Ok(LiteralKind::Bool(false))),
             "null" => Some(Ok(LiteralKind::Null)),
+            "some" => {
+                stream.jump();
+                let group: Group = stream.read().map_err(Recoverable::Fatal)?;
+                if group.delimiter != Delimiter::Paren {
+                    return Err(Recoverable::Fatal(diagnostic!(Error, group.span => ExpectedError("parenthesis after some literal".to_string())).into()));
+                };
+
+                Some(Ok(LiteralKind::Some(group.tokens)))
+            },
+            "none" => Some(Ok(LiteralKind::None)),
             _ => None,
         };
 

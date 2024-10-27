@@ -1,6 +1,6 @@
 use std::{cell::RefCell, rc::Rc};
 
-use lantern_lang::{error::RuntimeError, record::{LanternAny, LanternRecord}, runtime_error, scope::{RuntimeContext, Scope}, LanternValue, LanternVariable};
+use lantern_lang::{error::RuntimeError, record::LanternAny, runtime_error, scope::{RuntimeContext, Scope}, LanternValue, LanternVariable};
 use lantern_macros::lantern_fun;
 
 pub mod op;
@@ -9,8 +9,6 @@ pub fn global_scope() -> Rc<RefCell<Scope>> {
     let mut context = RuntimeContext::new();
     context
         .add_variable(inf())
-        .add_variable(none())
-        .add_function(some())
         .add_function(print())
         .add_function(stringify())
         .add_function(input())
@@ -20,17 +18,8 @@ pub fn global_scope() -> Rc<RefCell<Scope>> {
     Rc::new(RefCell::new(Scope::new(context)))
 }
 
-pub fn none() -> LanternVariable {
-    LanternVariable::new("none", LanternValue::Option(None))
-}
-
 pub fn inf() -> LanternVariable {
     LanternVariable::new("inf", LanternValue::Num(f64::INFINITY))
-}
-
-#[lantern_fun]
-pub fn some(arg: LanternAny) -> Option<LanternValue> {
-    Ok(Some(arg.into_value()))
 }
 
 #[lantern_fun]
