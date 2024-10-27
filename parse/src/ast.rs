@@ -63,7 +63,7 @@ impl Read<TokenStream, Diagnostics> for LanternType {
             "nil" => Ok(Self::Nil),
             "any" => Ok(Self::Any),
             "option" => {
-                let type_tokens = read_group_delimiter(stream, Delimiter::Paren)?;
+                let type_tokens = read_group_delimiter(stream, Delimiter::Paren)?.tokens;
                 Ok(Self::Option(Some(Box::new(TokenStream::new(type_tokens).read()?))))
             },
             _ => Ok(Self::Custom(ident.name)),
@@ -149,7 +149,7 @@ impl Read<TokenStream, Diagnostics> for FunDefinition {
 
         let ident = stream.read()?;
 
-        let args_tokens = read_group_delimiter(stream, Delimiter::Paren)?;
+        let args_tokens = read_group_delimiter(stream, Delimiter::Paren)?.tokens;
         let args = TokenStream::new(args_tokens).read()?;
 
         let ret = if read_punct(stream, PunctKind::Colon).is_ok() {
@@ -210,10 +210,10 @@ impl Read<TokenStream, Diagnostics> for RecDefinition {
         read_keyword(stream, KeywordKind::Rec)?;
 
         let ident = stream.read()?;
-        let fields_tokens = read_group_delimiter(stream, Delimiter::Paren)?;
+        let fields_tokens = read_group_delimiter(stream, Delimiter::Paren)?.tokens;
         let fields = TokenStream::new(fields_tokens).read()?;
 
-        let mut methods_stream = TokenStream::new(read_group_delimiter(stream, Delimiter::Brace)?);
+        let mut methods_stream = TokenStream::new(read_group_delimiter(stream, Delimiter::Brace)?.tokens);
         let mut methods = Vec::new();
         while !methods_stream.is_empty() {
             methods.push(methods_stream.read()?);
@@ -241,7 +241,7 @@ impl Read<TokenStream, Diagnostics> for IfStatement {
     fn read(stream: &mut TokenStream) -> Result<Self, Diagnostics> {
         read_keyword(stream, KeywordKind::If)?;
 
-        let condition_tokens = read_group_delimiter(stream, Delimiter::Paren)?;
+        let condition_tokens = read_group_delimiter(stream, Delimiter::Paren)?.tokens;
         let condition = TokenStream::new(condition_tokens).read()?;
         let block = stream.read()?;
         stream.skip_while(|token| matches!(token, Token::Newline(_)));
@@ -318,7 +318,7 @@ impl Read<TokenStream, Diagnostics> for WhileStatement {
     fn read(stream: &mut TokenStream) -> Result<Self, Diagnostics> {
         read_keyword(stream, KeywordKind::While)?;
 
-        let condition_tokens = read_group_delimiter(stream, Delimiter::Paren)?;
+        let condition_tokens = read_group_delimiter(stream, Delimiter::Paren)?.tokens;
         let condition = TokenStream::new(condition_tokens).read()?;
 
         Ok(Self { condition, block: stream.read()? })
@@ -386,18 +386,18 @@ pub struct Block {
 impl Read<TokenStream, Diagnostics> for Block {
     fn read(stream: &mut TokenStream) -> Result<Self, Diagnostics> {
         read_group_delimiter(stream, Delimiter::Brace)
-            .and_then(|tokens| to_stmts(TokenStream::new(tokens)).map(|stmts| Self { stmts }))
+            .and_then(|group| to_stmts(TokenStream::new(group.tokens)).map(|stmts| Self { stmts }))
     }
 }
 
 // TODO: fn can_read_group_delimiter
 
-fn read_group_delimiter(stream: &mut TokenStream, delimiter: Delimiter) -> Result<Vec<Token>, Diagnostics> {
+fn read_group_delimiter(stream: &mut TokenStream, delimiter: Delimiter) -> Result<Group, Diagnostics> {
     let paren_group = stream.get_consume(|token| matches!(token, Token::Group(Group { delimiter: group_delim, .. }) if *group_delim == delimiter))
         .map_err(|token| diagnostic!(Error, *Token::span_of(token) => ExpectedError(format!("{delimiter} group"))))?;
 
-    if let Token::Group(Group { tokens, .. }) = paren_group {
-        Ok(tokens)
+    if let Token::Group(group) = paren_group {
+        Ok(group)
     } else {
         unreachable!()
     }

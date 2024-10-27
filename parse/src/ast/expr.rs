@@ -113,7 +113,7 @@ fn read_single(stream: &mut TokenStream) -> Result<Expr, Diagnostics> {
         group = {
             read_group_delimiter(stream, Delimiter::Paren)
                 .map_err(Recoverable::Nonfatal)
-                .and_then(|tokens| TokenStream::new(tokens).read().map(Box::new).map_err(Recoverable::Fatal))
+                .and_then(|group| TokenStream::new(group.tokens).read().map(Box::new).map_err(Recoverable::Fatal))
         }, if => Expr::Group(group),
         block = stream.read().map_err(Recoverable::Nonfatal), if => Expr::Block(block),
     };
@@ -139,7 +139,7 @@ impl FunCall {
 impl Read<TokenStream, Diagnostics> for FunCall {
     fn read(stream: &mut TokenStream) -> Result<Self, Diagnostics> {
         let ident = stream.read()?;
-        let args_tokens = read_group_delimiter(stream, Delimiter::Paren)?;
+        let args_tokens = read_group_delimiter(stream, Delimiter::Paren)?.tokens;
         let args = read_delimited(&mut TokenStream::new(args_tokens), PunctKind::Comma)?;
 
         Ok(Self { ident, args })
@@ -168,7 +168,7 @@ impl Read<TokenStream, Diagnostics> for NewRec {
 
         read_double_punct(stream, DoublePunctKind::Colon)?;
 
-        let group_tokens = read_group_delimiter(stream, Delimiter::Paren)?;
+        let group_tokens = read_group_delimiter(stream, Delimiter::Paren)?.tokens;
         let args = read_delimited(&mut TokenStream::new(group_tokens), PunctKind::Comma)?;
 
         Ok(Self { ident, args })
