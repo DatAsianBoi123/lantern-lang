@@ -9,7 +9,6 @@ pub fn global_scope() -> Rc<RefCell<Scope>> {
     let mut context = RuntimeContext::new();
     context
         .add_variable(inf())
-        .add_variable(neg_inf())
         .add_variable(none())
         .add_function(some())
         .add_function(print())
@@ -27,10 +26,6 @@ pub fn none() -> LanternVariable {
 
 pub fn inf() -> LanternVariable {
     LanternVariable::new("inf", LanternValue::Num(f64::INFINITY))
-}
-
-pub fn neg_inf() -> LanternVariable {
-    LanternVariable::new("neg_inf", LanternValue::Num(f64::NEG_INFINITY))
 }
 
 #[lantern_fun]
