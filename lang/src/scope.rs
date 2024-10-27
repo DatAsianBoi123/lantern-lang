@@ -52,7 +52,6 @@ impl RuntimeContext {
 #[derive(Debug, Clone)]
 pub enum Scope {
     Context {
-        // TODO: find a better way to do this
         parent: Rc<RefCell<Scope>>,
         context: RuntimeContext,
     },

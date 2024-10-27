@@ -3,8 +3,6 @@ use std::fmt::{Display, Formatter};
 use lantern_lang::{error::RuntimeError, LanternValue};
 use lantern_parse::ast::{expr::{BinaryOperator, Operator, UnaryOperator}, LanternType};
 
-// TODO: handle overflows
-
 pub fn perform_binary_op(left: LanternValue, op: BinaryOperator, right: LanternValue) -> Result<LanternValue, RuntimeError> {
     match op {
         BinaryOperator::Add => {

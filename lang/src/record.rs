@@ -119,7 +119,6 @@ pub struct LanternMethod {
     pub function: LanternFunction,
 }
 
-// TODO: cloning
 #[derive(Debug, Clone, PartialEq)]
 pub struct LanternRecordFrame {
     pub ident: Ident,

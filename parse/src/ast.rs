@@ -11,7 +11,6 @@ pub enum Stmt {
     ValBinding(ValBinding),
     FunDefinition(FunDefinition),
     RecDefinition(RecDefinition),
-    // TODO: if expression
     If(IfStatement),
     Loop(LoopStatement),
     While(WhileStatement),

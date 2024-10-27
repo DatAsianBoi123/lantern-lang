@@ -213,24 +213,25 @@ impl Display for Ident {
 
 impl Read<FileStream, Diagnostics> for Ident {
     fn read(stream: &mut FileStream) -> Result<Self, Diagnostics> {
-        if stream.get().is_none() || stream.get().is_some_and(|get| !is_valid_ident(get)) {
-            return Err(diagnostic!(Error, *stream.location() => InvalidTokenError("ident character".to_string())).into());
+        let get = match stream.get() {
+            Some(get) if is_valid_ident(get) => get,
+            _ => return Err(diagnostic!(Error, *stream.location() => InvalidTokenError("ident character".to_string())).into()),
         };
 
         let before = *stream.location();
-        let mut name = String::new();
+        let mut name = get.to_string();
 
         let span = loop {
-            match stream.get() {
+            match stream.peek() {
                 Some(char) if is_valid_ident(char) => {
                     name.push(*char);
                     stream.consume();
                 },
-                // TODO: exclude non-ident char in span
                 Some(_) => break stream.span_since(before),
                 None => break Span::Range(before, None),
             }
         };
+        stream.consume();
 
         Ok(Self { name, span })
     }

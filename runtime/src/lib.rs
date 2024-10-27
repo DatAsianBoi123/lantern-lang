@@ -170,8 +170,7 @@ pub fn eval_expr(expr: Expr, scope: ScopeMut) -> Result<ControlFlow<ReturnType, 
                 LanternValue::Option(Some(val)) => LanternValue::Option(Some(Box::new(in_block(*val, block, scope.clone())?))),
                 LanternValue::Result(Ok(val)) => LanternValue::Result(Ok(Box::new(in_block(*val, block, scope.clone())?))),
                 LanternValue::Option(None) | LanternValue::Result(Err(_)) => base,
-                // TODO: error
-                _ => return Err(RuntimeError::new(MismatchedTypes(LanternType::Option(None), base.r#type()))),
+                _ => return Err(runtime_error!("left side of pipe block operator must be either result or option")),
             };
 
             Ok(ControlFlow::Continue(value))
@@ -182,8 +181,7 @@ pub fn eval_expr(expr: Expr, scope: ScopeMut) -> Result<ControlFlow<ReturnType, 
                 LanternValue::Option(None) => in_block(LanternValue::Null, block, scope.clone())?,
                 LanternValue::Result(Err(err)) => in_block(*err, block, scope.clone())?,
                 LanternValue::Option(Some(val)) | LanternValue::Result(Ok(val)) => *val,
-                // TODO: error
-                _ => return Err(RuntimeError::new(MismatchedTypes(LanternType::Option(None), base.r#type()))),
+                _ => return Err(runtime_error!("left side of coerce block operator must be either result or option")),
             };
 
             Ok(ControlFlow::Continue(value))
@@ -195,8 +193,7 @@ pub fn eval_expr(expr: Expr, scope: ScopeMut) -> Result<ControlFlow<ReturnType, 
                 (LanternValue::Option(None), Some(block)) => in_block_ret(LanternValue::Null, block, scope.clone()).map(ControlFlow::Break),
                 (LanternValue::Result(Err(err)), Some(block)) => in_block_ret(*err, block, scope.clone()).map(ControlFlow::Break),
                 (ret @ LanternValue::Option(None) | ret @ LanternValue::Result(Err(_)), None) => Ok(ControlFlow::Break(ReturnType::Return(ret))),
-                // TODO: error
-                (base, _) => Err(RuntimeError::new(MismatchedTypes(LanternType::Option(None), base.r#type()))),
+                _ => Err(runtime_error!("left side of branch operator must be either result or option")),
             }
         },
         Expr::BinaryOperation(BinaryOperation { left, op, right }) => {
