@@ -33,25 +33,6 @@ impl Display for LanternValue {
     }
 }
 
-impl From<Literal> for LanternValue {
-    fn from(val: Literal) -> Self {
-        val.kind.into()
-    }
-}
-
-impl From<LiteralKind> for LanternValue {
-    fn from(val: LiteralKind) -> Self {
-        use LiteralKind as L;
-
-        match val {
-            L::String(str) => Self::String(str),
-            L::Num(num) => Self::Num(num),
-            L::Bool(bool) => Self::Bool(bool),
-            L::Null => Self::Null,
-        }
-    }
-}
-
 impl LanternValue {
     pub fn r#type(&self) -> LanternType {
         match self {
