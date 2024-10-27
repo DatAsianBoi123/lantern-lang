@@ -100,7 +100,7 @@ impl Scope {
     pub fn add_variable(&mut self, value: LanternVariable) {
         if let Self::Context { context, .. } = self {
             context.add_variable(value);
-        } else { panic!("can't add function to Head scope") }
+        } else { panic!("can't add variable to Head scope") }
     }
 
     pub fn record(&self, name: &str) -> Option<Rc<LanternRecordFrame>> {
