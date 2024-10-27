@@ -2,7 +2,7 @@ use std::{cell::RefCell, fmt::{Display, Formatter}, rc::Rc};
 
 use error::RuntimeError;
 use lantern_parse::{ast::{LanternType, Stmt}, tokenizer::{KeywordKind, Literal, LiteralKind}};
-use record::{LanternCustomRecord, LanternMethod, LanternRecord};
+use record::{LanternAny, LanternCustomRecord, LanternMethod, LanternRecord};
 use scope::Scope;
 
 pub mod record;
@@ -70,7 +70,7 @@ impl LanternValue {
             Self::Num(num) => f64::field(name).map(|field| (field.get)(num)),
             Self::Bool(bool) => bool::field(name).map(|field| (field.get)(bool)),
             // TODO: get rid of clone
-            Self::Option(option) => Option::field(name).map(|field| (field.get)(&option.as_ref().map(|value| *value.clone()))),
+            Self::Option(option) => Option::field(name).map(|field| (field.get)(&option.as_ref().map(|value| LanternAny(*value.clone())))),
             Self::Custom(custom) => custom.fields.get(name).cloned(),
             Self::Null => <()>::field(name).map(|field| (field.get)(&())),
         }
@@ -81,7 +81,7 @@ impl LanternValue {
             Self::String(_) => String::method(name),
             Self::Num(_) => f64::method(name),
             Self::Bool(_) => bool::method(name),
-            Self::Option(_) => <Option<LanternValue>>::method(name),
+            Self::Option(_) => <Option<LanternAny>>::method(name),
             Self::Custom(custom) => custom.methods.get(name).cloned(),
             Self::Null => <()>::method(name),
         }

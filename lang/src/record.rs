@@ -6,7 +6,7 @@ use lantern_parse::tokenizer::Ident;
 use crate::{error::MismatchedTypes, runtime_error, LanternFunction, LanternFunctionArg, LanternFunctionBody, LanternType, LanternValue, RuntimeError, Scope};
 
 macro_rules! impl_type {
-    ($ty: ty {
+    ($ty: ty $( [ where $($g_ty: tt)* ] )? {
         $l_ty: expr,
         from $f_pat: pat => $f_expr: expr,
         from $($i_pat: pat)? => $i_expr: expr,
@@ -15,12 +15,12 @@ macro_rules! impl_type {
                 $fi_name: literal : $fi_ty: expr => $fi_get: expr,
             )*},
             $fn_pat: pat = {$(
-                $fn_name: literal ( $($fn_arg_pat: pat in $fn_arg_name: literal  : $fn_arg_ty: ty),* ) -> $fn_ret_type: ty
-                    $fn_body: block,
+                $(<$fn_ty: ty>)? $fn_name: literal ( $($fn_arg_pat: pat in $fn_arg_name: literal : $fn_arg_ty: ty),* ) -> $fn_ret_type: ty
+                        $fn_body: block,
             )*}
         )?
     }) => {
-        impl LanternRecord for $ty {
+        impl$(<$($g_ty)*>)? LanternRecord for $ty {
             fn r#type() -> LanternType {
                 $l_ty
             }
@@ -30,7 +30,7 @@ macro_rules! impl_type {
             }
             fn from_value(value: LanternValue) -> Option<Self> {
                 match value {
-                    $f_pat => Some($f_expr),
+                    $f_pat => $f_expr,
                     #[allow(unreachable_patterns)]
                     _ => None,
                 }
@@ -49,7 +49,8 @@ macro_rules! impl_type {
                         $fn_name => {
                             fn inner(scope: Rc<RefCell<Scope>>) -> Result<LanternValue, RuntimeError> {
                                 let scope = scope.borrow();
-                                let $fn_pat = <$ty>::from_value(scope.variable("self").expect("self method arg").value).expect("self arg type");
+                                let $fn_pat = <impl_type!(@t $ty $(, $fn_ty)?)>::from_value(scope.variable("self").expect("self method arg").value)
+                                    .expect("self arg type");
                                 $(
                                     let $fn_arg_pat = <$fn_arg_ty as LanternRecord>::from_value(scope.variable($fn_arg_name).expect("method arg").value)
                                         .expect("method arg type");
@@ -78,6 +79,14 @@ macro_rules! impl_type {
             }
         }
     };
+
+    (@t $ty: ty, $p_ty: ty) => {
+        impl_type!(@t $p_ty)
+    };
+
+    (@t $ty: ty) => {
+        $ty
+    }
 }
 
 pub trait LanternRecord {
@@ -190,13 +199,13 @@ impl From<LanternAny> for LanternValue {
 
 impl_type!(LanternAny {
     LanternType::Any,
-    from value => value.into(),
+    from value => Some(value.into()),
     from value => value.into(),
 });
 
 impl_type!(String {
     LanternType::String,
-    from LanternValue::String(str) => str,
+    from LanternValue::String(str) => Some(str),
     from str => LanternValue::String(str),
     str = {
         "len": LanternType::Num => LanternValue::Num(str.len() as f64),
@@ -213,7 +222,7 @@ impl_type!(String {
 
 impl_type!(f64 {
     LanternType::Num,
-    from LanternValue::Num(num) => num,
+    from LanternValue::Num(num) => Some(num),
     from num => LanternValue::Num(num),
     _ = { },
     num = {
@@ -225,54 +234,58 @@ impl_type!(f64 {
 
 impl_type!(bool {
     LanternType::Bool,
-    from LanternValue::Bool(bool) => bool,
+    from LanternValue::Bool(bool) => Some(bool),
     from bool => LanternValue::Bool(bool),
 });
 
 impl_type!(() {
     LanternType::Nil,
-    from LanternValue::Null => (),
+    from LanternValue::Null => Some(()),
     from => LanternValue::Null,
 });
 
-impl_type!(Option<LanternValue> {
-    LanternType::Option(None),
-    from LanternValue::Option(option) => option.map(|value| *value),
-    from option => LanternValue::Option(option.map(Box::new)),
+impl_type!(Option<T> [ where T: LanternRecord ] {
+    LanternType::Option(Some(Box::new(T::r#type()))),
+    from LanternValue::Option(option) => {
+        match option {
+            Some(value) => T::from_value(*value).map(Some),
+            None => Some(None),
+        }
+    },
+    from option => LanternValue::Option(option.map(|val| Box::new(val.into_value()))),
     _ = { },
     option = {
-        "is_some"() -> bool {
+        <Option<LanternAny>>"is_some"() -> bool {
             Ok(option.is_some())
         },
-        "is_none"() -> bool {
+        <Option<LanternAny>>"is_none"() -> bool {
             Ok(option.is_none())
         },
     }
 });
 
-impl<T: LanternRecord> LanternRecord for Option<T> {
-    fn r#type() -> LanternType {
-        LanternType::Option(Some(Box::new(T::r#type())))
-    }
-
-    fn into_value(self) -> LanternValue {
-        self.map(T::into_value).into_value()
-    }
-
-    fn from_value(value: LanternValue) -> Option<Self> {
-        match value {
-            LanternValue::Option(Some(value)) => T::from_value(*value).map(Some),
-            LanternValue::Option(None) => Some(None),
-            _ => None,
+impl_type!(Result<T, E> [ where T: LanternRecord, E: LanternRecord ] {
+    LanternType::Result(Some(Box::new(T::r#type())), Some(Box::new(E::r#type()))),
+    from LanternValue::Result(result) => {
+        match result {
+            Ok(ok) => T::from_value(*ok).map(Ok),
+            Err(err) => E::from_value(*err).map(Err),
         }
+    },
+    from result => {
+        match result {
+            Ok(ok) => LanternValue::Result(Ok(Box::new(ok.into_value()))),
+            Err(err) => LanternValue::Result(Err(Box::new(err.into_value()))),
+        }
+    },
+    _ = { },
+    result = {
+        <Result<LanternAny, LanternAny>>"is_ok"() -> bool {
+            Ok(result.is_ok())
+        },
+        <Result<LanternAny, LanternAny>>"is_err"() -> bool {
+            Ok(result.is_err())
+        },
     }
-
-    fn field(_name: &str) -> Option<LanternField<Self>> {
-        None
-    }
-
-    fn method(name: &str) -> Option<LanternMethod> {
-        <Option<LanternValue>>::method(name)
-    }
-}
+});
 
