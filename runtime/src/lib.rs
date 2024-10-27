@@ -25,7 +25,10 @@ macro_rules! eval_or_break {
     }};
 }
 
-pub fn execute(stmts: Vec<Stmt>, scope: ScopeMut) -> Result<ReturnType> {
+pub fn execute(Block { stmts, hoisted_funs, hoisted_recs }: Block, scope: ScopeMut) -> Result<ReturnType> {
+    let context = hoisted_context(hoisted_funs, hoisted_recs, scope.clone())?;
+    let scope = Rc::new(RefCell::new(Scope::nested(scope, context)));
+
     for stmt in stmts {
         match stmt {
             Stmt::Expr(expr) => {
@@ -44,29 +47,23 @@ pub fn execute(stmts: Vec<Stmt>, scope: ScopeMut) -> Result<ReturnType> {
                     ret_type => return Ok(ret_type),
                 }
             },
+            // NOTE: this will never be reached because hoisting removes fun definitions
             Stmt::FunDefinition(fun_definition) => scope.borrow_mut().add_function(gen_fun(fun_definition, scope.clone())?),
-            Stmt::RecDefinition(RecDefinition { ident, fields, methods }) => {
-                let methods = methods.into_iter()
-                    .map(|fun_definition| gen_fun(fun_definition, scope.clone()).map(|function| LanternMethod { function }))
-                    .collect::<Result<Vec<LanternMethod>>>()?;
-                let rec_frame = LanternRecordFrame { ident, fields: gen_args(fields, scope.clone())?, methods };
-
-                scope.borrow_mut().add_record(Rc::new(rec_frame));
-            },
-            Stmt::Loop(LoopStatement { block: Block { stmts } }) => {
+            // NOTE: this will never be reached because hoisting removes rec definitions
+            Stmt::RecDefinition(rec_definition) => scope.borrow_mut().add_record(Rc::new(gen_rec(rec_definition, scope.clone())?)),
+            Stmt::Loop(LoopStatement { block }) => {
                 loop {
                     // TODO: dont clone on every loop
-                    match execute(stmts.clone(), Rc::new(RefCell::new(Scope::nested(scope.clone(), RuntimeContext::new()))))? {
+                    match execute(block.clone(), scope.clone())? {
                         ReturnType::Return(ret) => return Ok(ReturnType::Return(ret)),
                         ReturnType::Break => break,
                         _ => {},
                     }
                 }
             },
-            Stmt::While(WhileStatement { condition, block: Block { stmts } }) => {
+            Stmt::While(WhileStatement { condition, block }) => {
                 loop {
                     // TODO: clones
-
                     let condition = match eval_or_ret!(condition.clone(), scope.clone()) {
                         LanternValue::Bool(condition) => condition,
                         value => return Err(RuntimeError::new(MismatchedTypes(LanternType::Bool, value.r#type()))),
@@ -74,7 +71,7 @@ pub fn execute(stmts: Vec<Stmt>, scope: ScopeMut) -> Result<ReturnType> {
 
                     if !condition { break; }
 
-                    match execute(stmts.clone(), Rc::new(RefCell::new(Scope::nested(scope.clone(), RuntimeContext::new()))))? {
+                    match execute(block.clone(), scope.clone())? {
                         ReturnType::Return(ret) => return Ok(ReturnType::Return(ret)),
                         ReturnType::Break => break,
                         _ => {},
@@ -146,8 +143,8 @@ pub fn eval_expr(expr: Expr, scope: ScopeMut) -> Result<ControlFlow<ReturnType, 
         Expr::Val(Ident { name, .. }) => scope.borrow().variable(&name)
             .map(|var| ControlFlow::Continue(var.value))
             .ok_or_else(|| RuntimeError::new(UnknownItem::Variable)),
-        Expr::Block(Block { stmts }) => {
-            execute(stmts, Rc::new(RefCell::new(Scope::nested(scope.clone(), RuntimeContext::new())))).and_then(|ret_value| match ret_value {
+        Expr::Block(block) => {
+            execute(block, scope.clone()).and_then(|ret_value| match ret_value {
                 ReturnType::Return(ret) => Ok(ControlFlow::Continue(ret)),
                 ReturnType::None => Ok(ControlFlow::Continue(LanternValue::Null)),
                 ret_type => Err(RuntimeError::new(InvalidReturnType(ret_type))),
@@ -167,11 +164,11 @@ pub fn eval_expr(expr: Expr, scope: ScopeMut) -> Result<ControlFlow<ReturnType, 
             let scope = Rc::new(RefCell::new(Scope::nested(scope, context)));
             eval_fun(scope, args, method.function)
         },
-        Expr::PipeBlock(PipeBlock { base, block: Block { stmts } }) => {
+        Expr::PipeBlock(PipeBlock { base, block }) => {
             let base = eval_or_break!(*base, scope.clone());
             let value = match base {
-                LanternValue::Option(Some(val))=> LanternValue::Option(Some(Box::new(in_block(*val, stmts, scope.clone())?))),
-                LanternValue::Result(Ok(val)) => LanternValue::Result(Ok(Box::new(in_block(*val, stmts, scope.clone())?))),
+                LanternValue::Option(Some(val)) => LanternValue::Option(Some(Box::new(in_block(*val, block, scope.clone())?))),
+                LanternValue::Result(Ok(val)) => LanternValue::Result(Ok(Box::new(in_block(*val, block, scope.clone())?))),
                 LanternValue::Option(None) | LanternValue::Result(Err(_)) => base,
                 // TODO: error
                 _ => return Err(RuntimeError::new(MismatchedTypes(LanternType::Option(None), base.r#type()))),
@@ -179,11 +176,11 @@ pub fn eval_expr(expr: Expr, scope: ScopeMut) -> Result<ControlFlow<ReturnType, 
 
             Ok(ControlFlow::Continue(value))
         },
-        Expr::CoerceBlock(CoerceBlock { base, block: Block { stmts } }) => {
+        Expr::CoerceBlock(CoerceBlock { base, block }) => {
             let base = eval_or_break!(*base, scope.clone());
             let value = match base {
-                LanternValue::Option(None) => in_block(LanternValue::Null, stmts, scope.clone())?,
-                LanternValue::Result(Err(err)) => in_block(*err, stmts, scope.clone())?,
+                LanternValue::Option(None) => in_block(LanternValue::Null, block, scope.clone())?,
+                LanternValue::Result(Err(err)) => in_block(*err, block, scope.clone())?,
                 LanternValue::Option(Some(val)) | LanternValue::Result(Ok(val)) => *val,
                 // TODO: error
                 _ => return Err(RuntimeError::new(MismatchedTypes(LanternType::Option(None), base.r#type()))),
@@ -195,8 +192,8 @@ pub fn eval_expr(expr: Expr, scope: ScopeMut) -> Result<ControlFlow<ReturnType, 
             let base = eval_or_break!(*base, scope.clone());
             match (base, block) {
                 (LanternValue::Option(Some(val)) | LanternValue::Result(Ok(val)), _) => Ok(ControlFlow::Continue(*val)),
-                (LanternValue::Option(None), Some(Block { stmts })) => in_block_ret(LanternValue::Null, stmts, scope.clone()).map(ControlFlow::Break),
-                (LanternValue::Result(Err(err)), Some(Block { stmts })) => in_block_ret(*err, stmts, scope.clone()).map(ControlFlow::Break),
+                (LanternValue::Option(None), Some(block)) => in_block_ret(LanternValue::Null, block, scope.clone()).map(ControlFlow::Break),
+                (LanternValue::Result(Err(err)), Some(block)) => in_block_ret(*err, block, scope.clone()).map(ControlFlow::Break),
                 (ret @ LanternValue::Option(None) | ret @ LanternValue::Result(Err(_)), None) => Ok(ControlFlow::Break(ReturnType::Return(ret))),
                 // TODO: error
                 (base, _) => Err(RuntimeError::new(MismatchedTypes(LanternType::Option(None), base.r#type()))),
@@ -218,15 +215,15 @@ pub fn eval_expr(expr: Expr, scope: ScopeMut) -> Result<ControlFlow<ReturnType, 
 
 fn eval_if_branch(branch: IfBranch, scope: ScopeMut) -> Result<ReturnType> {
     match branch {
-        IfBranch::Elif(condition, Block { stmts }, branch) => {
+        IfBranch::Elif(condition, block, branch) => {
             match (eval_or_ret!(condition, scope.clone()), branch) {
-                (LanternValue::Bool(bool), _) if bool => execute(stmts, Rc::new(RefCell::new(Scope::nested(scope.clone(), RuntimeContext::new())))),
+                (LanternValue::Bool(bool), _) if bool => execute(block, scope),
                 (LanternValue::Bool(_), Some(branch)) => eval_if_branch(*branch, scope),
                 (LanternValue::Bool(_), None) => Ok(ReturnType::None),
                 (value, _) => Err(RuntimeError::new(MismatchedTypes(LanternType::Bool, value.r#type()))),
             }
         },
-        IfBranch::Else(Block { stmts }) => execute(stmts, Rc::new(RefCell::new(Scope::nested(scope.clone(), RuntimeContext::new())))),
+        IfBranch::Else(block) => execute(block, scope),
     }
 }
 
@@ -249,8 +246,17 @@ fn gen_fun(FunDefinition { ident, args, ret, block }: FunDefinition, scope: Scop
         name: ident.name,
         args,
         ret_type,
-        body: LanternFunctionBody::Custom(block.stmts),
+        body: LanternFunctionBody::Custom(block),
     })
+}
+
+fn gen_rec(RecDefinition { ident, fields, methods }: RecDefinition, scope: ScopeMut) -> Result<LanternRecordFrame> {
+    let methods = methods.into_iter()
+        .map(|fun_definition| gen_fun(fun_definition, scope.clone()).map(|function| LanternMethod { function }))
+        .collect::<Result<Vec<LanternMethod>>>()?;
+    let rec_frame = LanternRecordFrame { ident, fields: gen_args(fields, scope.clone())?, methods };
+
+    Ok(rec_frame)
 }
 
 fn eval_fun(scope: ScopeMut, args: Vec<Expr>, function: LanternFunction) -> Result<ControlFlow<ReturnType, LanternValue>> {
@@ -274,8 +280,9 @@ fn eval_fun(scope: ScopeMut, args: Vec<Expr>, function: LanternFunction) -> Resu
     let scope = Rc::new(RefCell::new(Scope::nested(scope.clone(), context)));
     let ret = match function.body {
         LanternFunctionBody::Native(fn_pointer) => fn_pointer(scope),
-        LanternFunctionBody::Custom(stmts) => {
-            match execute(stmts, scope)? {
+        LanternFunctionBody::Custom(block) => {
+            // HACK: this creates double nested scopes
+            match execute(block, scope)? {
                 ReturnType::Return(ret) => Ok(ret),
                 ReturnType::None => Ok(LanternValue::Null),
                 ret_type => Err(runtime_error!("{} not allowed here", ret_type.keyword().expect("return type is not None"))),
@@ -287,22 +294,35 @@ fn eval_fun(scope: ScopeMut, args: Vec<Expr>, function: LanternFunction) -> Resu
     Ok(ControlFlow::Continue(ret))
 }
 
-fn in_block(in_var: LanternValue, stmts: Vec<Stmt>, scope: ScopeMut) -> Result<LanternValue> {
+fn hoisted_context(hoisted_funs: Vec<FunDefinition>, hoisted_recs: Vec<RecDefinition>, scope: ScopeMut) -> Result<RuntimeContext> {
+    let mut context = RuntimeContext::new();
+    for fun in hoisted_funs {
+        context.add_function(gen_fun(fun, scope.clone())?);
+    };
+    for rec in hoisted_recs {
+        context.add_record(Rc::new(gen_rec(rec, scope.clone())?));
+    };
+    Ok(context)
+}
+
+fn in_block(in_var: LanternValue, block: Block, scope: ScopeMut) -> Result<LanternValue> {
     let mut context = RuntimeContext::new();
     context.add_variable(LanternVariable { name: "in".to_string(), r#type: in_var.r#type(), value: in_var });
 
-    match execute(stmts, Rc::new(RefCell::new(Scope::nested(scope.clone(), context))))? {
+    // HACK: this creates a double nested scope
+    match execute(block, Rc::new(RefCell::new(Scope::nested(scope.clone(), context))))? {
         ReturnType::Return(ret) => Ok(ret),
         ReturnType::None => Err(RuntimeError::new(ExpectedError("return".to_string()))),
         ret_type => Err(RuntimeError::new(InvalidReturnType(ret_type))),
     }
 }
 
-fn in_block_ret(in_var: LanternValue, stmts: Vec<Stmt>, scope: ScopeMut) -> Result<ReturnType> {
+fn in_block_ret(in_var: LanternValue, block: Block, scope: ScopeMut) -> Result<ReturnType> {
     let mut context = RuntimeContext::new();
     context.add_variable(LanternVariable { name: "in".to_string(), r#type: in_var.r#type(), value: in_var });
 
-    match execute(stmts, Rc::new(RefCell::new(Scope::nested(scope.clone(), context))))? {
+    // HACK: this creates a double nested scope
+    match execute(block, Rc::new(RefCell::new(Scope::nested(scope.clone(), context))))? {
         ReturnType::None => Err(RuntimeError::new(ExpectedError("return".to_string()))),
         ret_type => Ok(ret_type),
     }

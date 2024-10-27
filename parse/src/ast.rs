@@ -398,12 +398,14 @@ impl Read<TokenStream, Diagnostics> for ValAssignment {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Block {
     pub stmts: Vec<Stmt>,
+    pub hoisted_funs: Vec<FunDefinition>,
+    pub hoisted_recs: Vec<RecDefinition>,
 }
 
 impl Read<TokenStream, Diagnostics> for Block {
     fn read(stream: &mut TokenStream) -> Result<Self, Diagnostics> {
         read_group_delimiter(stream, Delimiter::Brace)
-            .and_then(|group| to_stmts(TokenStream::new(group.tokens)).map(|stmts| Self { stmts }))
+            .and_then(|group| to_stmts(TokenStream::new(group.tokens)))
     }
 }
 
@@ -420,8 +422,10 @@ fn read_group_delimiter(stream: &mut TokenStream, delimiter: Delimiter) -> Resul
     }
 }
 
-pub fn to_stmts(mut stream: TokenStream) -> Result<Vec<Stmt>, Diagnostics> {
+pub fn to_stmts(mut stream: TokenStream) -> Result<Block, Diagnostics> {
     let mut stmts = Vec::new();
+    let mut hoisted_funs = Vec::new();
+    let mut hoisted_recs = Vec::new();
 
     loop {
         stream.skip_while(|token| matches!(token, Token::Newline(_)));
@@ -429,12 +433,14 @@ pub fn to_stmts(mut stream: TokenStream) -> Result<Vec<Stmt>, Diagnostics> {
         if stream.get().is_none() { break; }
 
         match Stmt::read(&mut stream) {
+            Ok(Stmt::FunDefinition(fun_def)) => hoisted_funs.push(fun_def),
+            Ok(Stmt::RecDefinition(rec_def)) => hoisted_recs.push(rec_def),
             Ok(stmt) => stmts.push(stmt),
             Err(err) => return Err(err),
         }
     }
 
-    Ok(stmts)
+    Ok(Block { stmts, hoisted_funs, hoisted_recs })
 }
 
 fn can_read_keyword(stream: &mut TokenStream, keyword: KeywordKind) -> bool {

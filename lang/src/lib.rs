@@ -1,7 +1,7 @@
 use std::{cell::RefCell, fmt::{Display, Formatter}, rc::Rc};
 
 use error::RuntimeError;
-use lantern_parse::{ast::{LanternType, Stmt}, tokenizer::KeywordKind};
+use lantern_parse::{ast::{Block, LanternType}, tokenizer::KeywordKind};
 use record::{LanternAny, LanternCustomRecord, LanternMethod, LanternRecord};
 use scope::Scope;
 
@@ -119,7 +119,7 @@ pub struct LanternFunctionArg {
 #[derive(Clone, PartialEq)]
 pub enum LanternFunctionBody {
     Native(fn(Rc<RefCell<Scope>>) -> Result<LanternValue, RuntimeError>),
-    Custom(Vec<Stmt>),
+    Custom(Block),
 }
 
 impl core::fmt::Debug for LanternFunctionBody {

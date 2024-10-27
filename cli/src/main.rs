@@ -44,7 +44,7 @@ fn main() -> ExitCode {
         println!("parsing into ast...")
     }
     let before = Instant::now();
-    let stmts = match to_stmts(TokenStream::new(tokens)) {
+    let block = match to_stmts(TokenStream::new(tokens)) {
         Ok(stmts) => stmts,
         Err(err) => {
             eprintln!("{err}");
@@ -53,7 +53,7 @@ fn main() -> ExitCode {
     };
 
     if verbose {
-        if very_verbose { println!("{stmts:#?}"); };
+        if very_verbose { println!("{block:#?}"); };
         println!("parsing took {:?}", Instant::now().duration_since(before));
         println!();
     }
@@ -62,7 +62,7 @@ fn main() -> ExitCode {
 
     let scope = builtin::global_scope();
 
-    if let Err(err) = runtime::execute(stmts, scope) {
+    if let Err(err) = runtime::execute(block, scope) {
         eprintln!("{err}");
         ExitCode::FAILURE
     } else {
