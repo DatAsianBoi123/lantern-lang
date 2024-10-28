@@ -1,4 +1,4 @@
-use std::{cell::RefCell, ops::ControlFlow, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, ops::ControlFlow, rc::Rc};
 
 use lantern_builtin::op::{perform_binary_op, perform_unary_op};
 use lantern_lang::{error::{InvalidReturnType, MismatchedTypes, RuntimeError, UnknownItem}, record::{LanternMethod, LanternRecordFrame}, runtime_error, scope::{RuntimeContext, Scope}, LanternFunction, LanternFunctionArg, LanternFunctionBody, LanternValue, LanternVariable, ReturnType};
@@ -103,6 +103,7 @@ pub fn eval_expr(expr: Expr, scope: ScopeMut) -> Result<ControlFlow<ReturnType, 
         },
         Expr::NewRec(NewRec { ident: Ident { name, .. }, args }) => {
             let rec = scope.borrow().record(&name).ok_or_else(|| runtime_error!(UnknownItem::Record))?;
+            if rec.private_init { return Err(runtime_error!("cannot init record with private init")); };
 
             let mut init_args = Vec::with_capacity(args.len());
             for arg in args {
@@ -247,11 +248,11 @@ fn gen_fun(FunDefinition { ident, args, ret, block }: FunDefinition, scope: Scop
     })
 }
 
-fn gen_rec(RecDefinition { ident, fields, methods }: RecDefinition, scope: ScopeMut) -> Result<LanternRecordFrame> {
+fn gen_rec(RecDefinition { ident, fields, methods, private_init }: RecDefinition, scope: ScopeMut) -> Result<LanternRecordFrame> {
     let methods = methods.into_iter()
         .map(|fun_definition| gen_fun(fun_definition, scope.clone()).map(|function| LanternMethod { function }))
         .collect::<Result<Vec<LanternMethod>>>()?;
-    let rec_frame = LanternRecordFrame { ident, fields: gen_args(fields, scope.clone())?, methods };
+    let rec_frame = LanternRecordFrame { ident, fields: gen_args(fields, scope.clone())?, methods, private_init };
 
     Ok(rec_frame)
 }

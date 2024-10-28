@@ -124,6 +124,7 @@ pub struct LanternRecordFrame {
     pub ident: Ident,
     pub fields: Vec<LanternFunctionArg>,
     pub methods: Vec<LanternMethod>,
+    pub private_init: bool,
 }
 
 impl LanternRecordFrame {

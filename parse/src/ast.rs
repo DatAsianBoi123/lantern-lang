@@ -1,4 +1,4 @@
-use std::{collections::VecDeque, fmt::{Display, Formatter}};
+use std::{collections::{HashMap, VecDeque}, fmt::{Display, Formatter}};
 
 use expr::Expr;
 
@@ -213,6 +213,7 @@ pub struct RecDefinition {
     pub ident: Ident,
     pub fields: FunArgs,
     pub methods: Vec<FunDefinition>,
+    pub private_init: bool,
 }
 
 impl RecDefinition {
@@ -226,7 +227,11 @@ impl Read<TokenStream, Diagnostics> for RecDefinition {
         read_keyword(stream, KeywordKind::Rec)?;
 
         let ident = stream.read()?;
-        let fields_tokens = read_group_delimiter(stream, Delimiter::Paren)?.tokens;
+        let (fields_tokens, private_init) = match stream.read()? {
+            Group { delimiter: Delimiter::Paren, tokens, .. } => (tokens, false),
+            Group { delimiter: Delimiter::Bracket, tokens, .. } => (tokens, true),
+            group => return Err(diagnostic!(Error, group.span => ExpectedError("paren or bracket group".to_string())).into()),
+        };
         let fields = TokenStream::new(fields_tokens).read()?;
 
         let mut methods_stream = TokenStream::new(read_group_delimiter(stream, Delimiter::Brace)?.tokens);
@@ -236,7 +241,7 @@ impl Read<TokenStream, Diagnostics> for RecDefinition {
             methods_stream.skip_while(|token| matches!(token, Token::Newline(_)));
         }
 
-        Ok(Self { ident, fields, methods })
+        Ok(Self { ident, fields, methods, private_init })
     }
 }
 
