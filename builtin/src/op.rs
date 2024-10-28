@@ -20,15 +20,8 @@ pub fn perform_binary_op(left: LanternValue, op: BinaryOperator, right: LanternV
         BinaryOperator::And => binary_bool_op(left, right, op, |l, r| Ok(l && r)),
         BinaryOperator::Or => binary_bool_op(left, right, op, |l, r| Ok(l || r)),
 
-        BinaryOperator::Eq | BinaryOperator::NotEq => {
-            if left.r#type() != right.r#type() {
-                return Err(RuntimeError::new(InvalidOpTypes::new_binary(op, left.r#type(), right.r#type())));
-            };
-
-            let bool = if let BinaryOperator::Eq = op { left == right }
-            else { left != right };
-            Ok(LanternValue::Bool(bool))
-        },
+        BinaryOperator::Eq => Ok(LanternValue::Bool(left == right)),
+        BinaryOperator::NotEq => Ok(LanternValue::Bool(left != right)),
 
         BinaryOperator::LessThan | BinaryOperator::GreaterThan | BinaryOperator::LessOrEq | BinaryOperator::GreaterOrEq => {
             match (&left, &right) {
