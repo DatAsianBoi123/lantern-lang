@@ -12,6 +12,7 @@ pub fn global_scope() -> Rc<RefCell<Scope>> {
         .add_function(print())
         .add_function(stringify())
         .add_function(input())
+        .add_function(assert())
         .add_function(assert_eq())
         .add_function(assert_neq());
 
@@ -43,6 +44,15 @@ pub fn input() -> String {
     let buf = buf.trim().to_string();
 
     Ok(buf)
+}
+
+#[lantern_fun]
+pub fn assert(cond: bool) {
+    if !cond {
+        Err(runtime_error!("Assertion error: {cond}"))
+    } else {
+        Ok(())
+    }
 }
 
 #[lantern_fun]
