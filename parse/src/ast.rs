@@ -413,19 +413,6 @@ impl Read<TokenStream, Diagnostics> for Block {
     }
 }
 
-// TODO: fn can_read_group_delimiter
-
-fn read_group_delimiter(stream: &mut TokenStream, delimiter: Delimiter) -> Result<Group, Diagnostics> {
-    let paren_group = stream.get_consume(|token| matches!(token, Token::Group(Group { delimiter: group_delim, .. }) if *group_delim == delimiter))
-        .map_err(|token| diagnostic!(Error, *Token::span_of(token) => ExpectedError(format!("{delimiter} group"))))?;
-
-    if let Token::Group(group) = paren_group {
-        Ok(group)
-    } else {
-        unreachable!()
-    }
-}
-
 pub fn to_stmts(mut stream: TokenStream) -> Result<Block, Diagnostics> {
     let mut stmts = Vec::new();
     let mut hoisted_funs = HashMap::new();
@@ -455,6 +442,19 @@ pub fn to_stmts(mut stream: TokenStream) -> Result<Block, Diagnostics> {
     }
 
     Ok(Block { stmts, hoisted_funs, hoisted_recs })
+}
+
+// TODO: fn can_read_group_delimiter
+
+fn read_group_delimiter(stream: &mut TokenStream, delimiter: Delimiter) -> Result<Group, Diagnostics> {
+    let paren_group = stream.get_consume(|token| matches!(token, Token::Group(Group { delimiter: group_delim, .. }) if *group_delim == delimiter))
+        .map_err(|token| diagnostic!(Error, *Token::span_of(token) => ExpectedError(format!("{delimiter} group"))))?;
+
+    if let Token::Group(group) = paren_group {
+        Ok(group)
+    } else {
+        unreachable!()
+    }
 }
 
 fn can_read_keyword(stream: &mut TokenStream, keyword: KeywordKind) -> bool {
