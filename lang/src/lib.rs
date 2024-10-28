@@ -9,6 +9,8 @@ pub mod record;
 pub mod scope;
 pub mod error;
 
+pub type ScopeMut = Rc<RefCell<Scope>>;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum LanternValue {
     String(String),
@@ -118,7 +120,7 @@ pub struct LanternFunctionArg {
 
 #[derive(Clone, PartialEq)]
 pub enum LanternFunctionBody {
-    Native(fn(Rc<RefCell<Scope>>) -> Result<LanternValue, RuntimeError>),
+    Native(fn(ScopeMut) -> Result<LanternValue, RuntimeError>),
     Custom(Block),
 }
 

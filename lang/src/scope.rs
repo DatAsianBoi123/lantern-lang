@@ -1,6 +1,6 @@
 use std::{cell::RefCell, collections::{hash_map::Entry, HashMap}, rc::Rc};
 
-use crate::{error::{MismatchedTypes, RuntimeError, UnknownItem}, record::LanternRecordFrame, LanternFunction, LanternValue, LanternVariable};
+use crate::{error::{MismatchedTypes, RuntimeError, UnknownItem}, record::LanternRecordFrame, LanternFunction, LanternValue, LanternVariable, ScopeMut};
 
 #[derive(Debug, Clone)]
 pub struct RuntimeContext {
@@ -52,7 +52,7 @@ impl RuntimeContext {
 #[derive(Debug, Clone)]
 pub enum Scope {
     Context {
-        parent: Rc<RefCell<Scope>>,
+        parent: ScopeMut,
         context: RuntimeContext,
     },
     Head,
@@ -66,7 +66,7 @@ impl Scope {
         }
     }
 
-    pub fn nested(parent: Rc<RefCell<Self>>, context: RuntimeContext) -> Self {
+    pub fn nested(parent: ScopeMut, context: RuntimeContext) -> Self {
         Self::Context {
             parent,
             context,

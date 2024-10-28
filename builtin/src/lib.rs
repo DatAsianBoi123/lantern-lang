@@ -1,11 +1,11 @@
 use std::{cell::RefCell, rc::Rc};
 
-use lantern_lang::{error::RuntimeError, record::LanternAny, runtime_error, scope::{RuntimeContext, Scope}, LanternValue, LanternVariable};
+use lantern_lang::{error::RuntimeError, record::LanternAny, runtime_error, scope::{RuntimeContext, Scope}, LanternValue, LanternVariable, ScopeMut};
 use lantern_macros::lantern_fun;
 
 pub mod op;
 
-pub fn global_scope() -> Rc<RefCell<Scope>> {
+pub fn global_scope() -> ScopeMut {
     let mut context = RuntimeContext::new();
     context
         .add_variable(inf())

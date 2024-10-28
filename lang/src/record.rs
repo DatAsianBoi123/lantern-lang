@@ -1,9 +1,9 @@
-use std::{cell::RefCell, collections::HashMap, fmt::{Display, Formatter}, rc::Rc};
+use std::{collections::HashMap, fmt::{Display, Formatter}, rc::Rc};
 
 use itertools::Itertools;
 use lantern_parse::tokenizer::Ident;
 
-use crate::{error::MismatchedTypes, runtime_error, LanternFunction, LanternFunctionArg, LanternFunctionBody, LanternType, LanternValue, RuntimeError, Scope};
+use crate::{error::MismatchedTypes, runtime_error, LanternFunction, LanternFunctionArg, LanternFunctionBody, LanternType, LanternValue, RuntimeError, ScopeMut};
 
 macro_rules! impl_type {
     ($ty: ty $( [ where $($g_ty: tt)* ] )? {
@@ -47,7 +47,7 @@ macro_rules! impl_type {
                 match name {
                     $($(
                         $fn_name => {
-                            fn inner(scope: Rc<RefCell<Scope>>) -> Result<LanternValue, RuntimeError> {
+                            fn inner(scope: ScopeMut) -> Result<LanternValue, RuntimeError> {
                                 let scope = scope.borrow();
                                 let $fn_pat = <impl_type!(@t $ty $(, $fn_ty)?)>::from_value(scope.variable("self").expect("self method arg").value)
                                     .expect("self arg type");

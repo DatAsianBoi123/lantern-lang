@@ -1,11 +1,10 @@
 use std::{cell::RefCell, collections::HashMap, ops::ControlFlow, rc::Rc};
 
 use lantern_builtin::op::{perform_binary_op, perform_unary_op};
-use lantern_lang::{error::{InvalidReturnType, MismatchedTypes, RuntimeError, UnknownItem}, record::{LanternMethod, LanternRecordFrame}, runtime_error, scope::{RuntimeContext, Scope}, LanternFunction, LanternFunctionArg, LanternFunctionBody, LanternValue, LanternVariable, ReturnType};
+use lantern_lang::{error::{InvalidReturnType, MismatchedTypes, RuntimeError, UnknownItem}, record::{LanternMethod, LanternRecordFrame}, runtime_error, scope::{RuntimeContext, Scope}, LanternFunction, LanternFunctionArg, LanternFunctionBody, LanternValue, LanternVariable, ReturnType, ScopeMut};
 use lantern_parse::{ast::{expr::{AccessField, BinaryOperation, Branch, CallMethod, CoerceBlock, Expr, FunCall, NewRec, PipeBlock, UnaryOperation}, Block, FunArgs, FunDefinition, IfBranch, IfStatement, LanternType, LoopStatement, RecDefinition, Ret, Stmt, ValAssignment, ValBinding, WhileStatement}, error::ExpectedError, read::{ItemStream, TokenStream}, tokenizer::{Ident, Literal}};
 
 pub type Result<T> = std::result::Result<T, RuntimeError>;
-pub type ScopeMut = Rc<RefCell<Scope>>;
 
 macro_rules! eval_or_ret {
     ($expr: expr, $scope: expr) => {{
