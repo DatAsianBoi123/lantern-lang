@@ -1,9 +1,9 @@
-use std::{collections::HashMap, fmt::{Display, Formatter}, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, fmt::{Display, Formatter}, rc::Rc};
 
 use itertools::Itertools;
 use lantern_parse::tokenizer::Ident;
 
-use crate::{error::MismatchedTypes, runtime_error, LanternFunction, LanternFunctionArg, LanternFunctionBody, LanternType, LanternValue, RuntimeError, ScopeMut};
+use crate::{error::MismatchedTypes, runtime_error, Scope, LanternFunction, LanternFunctionArg, LanternFunctionBody, LanternType, LanternValue, RuntimeError, ScopeMut};
 
 macro_rules! impl_type {
     ($ty: ty $( [ where $($g_ty: tt)* ] )? {
@@ -70,6 +70,7 @@ macro_rules! impl_type {
                                     args,
                                     ret_type: <$fn_ret_type as LanternRecord>::r#type(),
                                     body,
+                                    scope: Rc::new(RefCell::new(Scope::Head)),
                                 }
                             })
                         },

@@ -99,6 +99,7 @@ pub struct LanternFunction {
     pub args: Vec<LanternFunctionArg>,
     pub ret_type: LanternType,
     pub body: LanternFunctionBody,
+    pub scope: ScopeMut,
 }
 
 impl core::fmt::Debug for LanternFunction {

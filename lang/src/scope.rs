@@ -2,7 +2,7 @@ use std::{cell::RefCell, collections::{hash_map::Entry, HashMap}, rc::Rc};
 
 use crate::{error::{MismatchedTypes, RuntimeError, UnknownItem}, record::LanternRecordFrame, LanternFunction, LanternValue, LanternVariable, ScopeMut};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct RuntimeContext {
     functions: HashMap<String, LanternFunction>,
     variables: HashMap<String, LanternVariable>,
@@ -49,7 +49,7 @@ impl RuntimeContext {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Scope {
     Context {
         parent: ScopeMut,

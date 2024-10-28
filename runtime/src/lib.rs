@@ -25,8 +25,7 @@ macro_rules! eval_or_break {
 }
 
 pub fn execute(Block { stmts, hoisted_funs, hoisted_recs }: Block, scope: ScopeMut) -> Result<ReturnType> {
-    let context = hoisted_context(hoisted_funs, hoisted_recs, scope.clone())?;
-    let scope = Rc::new(RefCell::new(Scope::nested(scope, context)));
+    let scope = hoisted_scope(hoisted_funs, hoisted_recs, scope)?;
 
     for stmt in stmts {
         match stmt {
@@ -98,7 +97,7 @@ pub fn eval_expr(expr: Expr, scope: ScopeMut) -> Result<ControlFlow<ReturnType, 
         Expr::Group(expr) => eval_expr(*expr, scope),
         Expr::FunCall(FunCall { ident: Ident { name, .. }, args }) => {
             let function = scope.borrow().function(&name).ok_or_else(|| runtime_error!(UnknownItem::Function))?;
-            eval_fun(scope.clone(), args, function)
+            eval_fun(scope.clone(), args, function, RuntimeContext::new())
         },
         Expr::NewRec(NewRec { ident: Ident { name, .. }, args }) => {
             let rec = scope.borrow().record(&name).ok_or_else(|| runtime_error!(UnknownItem::Record))?;
@@ -106,7 +105,7 @@ pub fn eval_expr(expr: Expr, scope: ScopeMut) -> Result<ControlFlow<ReturnType, 
 
             let mut init_args = Vec::with_capacity(args.len());
             for arg in args {
-                let value = match eval_expr(arg,scope.clone())? {
+                let value = match eval_expr(arg, scope.clone())? {
                     ControlFlow::Continue(cont) => cont,
                     br @ ControlFlow::Break(_) => return Ok(br),
                 };
@@ -161,8 +160,7 @@ pub fn eval_expr(expr: Expr, scope: ScopeMut) -> Result<ControlFlow<ReturnType, 
 
             let mut context = RuntimeContext::new();
             context.add_variable(LanternVariable::new("self", callee));
-            let scope = Rc::new(RefCell::new(Scope::nested(scope, context)));
-            eval_fun(scope, args, method.function)
+            eval_fun(scope.clone(), args, method.function, context)
         },
         Expr::PipeBlock(PipeBlock { base, block }) => {
             let base = eval_or_break!(*base, scope.clone());
@@ -244,6 +242,7 @@ fn gen_fun(FunDefinition { ident, args, ret, block }: FunDefinition, scope: Scop
         args,
         ret_type,
         body: LanternFunctionBody::Custom(block),
+        scope: scope.clone(),
     })
 }
 
@@ -256,25 +255,28 @@ fn gen_rec(RecDefinition { ident, fields, methods, private_init }: RecDefinition
     Ok(rec_frame)
 }
 
-fn eval_fun(scope: ScopeMut, args: Vec<Expr>, function: LanternFunction) -> Result<ControlFlow<ReturnType, LanternValue>> {
+fn eval_fun(
+    scope: ScopeMut,
+    args: Vec<Expr>,
+    function: LanternFunction,
+    mut execute_context: RuntimeContext,
+) -> Result<ControlFlow<ReturnType, LanternValue>> {
     let fun_args = function.args;
 
     if args.len() != fun_args.len() {
         return Err(runtime_error!("expected {} arg(s), but got {} arg(s) instead", fun_args.len(), args.len()));
     };
 
-    let mut context = RuntimeContext::new();
     for (expr, arg) in args.into_iter().zip(fun_args) {
         let value = eval_or_break!(expr, scope.clone());
         if !value.r#type().applies_to(&arg.r#type) {
             return Err(RuntimeError::new(MismatchedTypes(arg.r#type, value.r#type())));
         };
 
-        context.add_variable(LanternVariable::new(arg.name.to_string(), value));
+        execute_context.add_variable(LanternVariable::new(arg.name.to_string(), value));
     }
 
-    // TODO: global scope (functions are not in the scope where they are defined)
-    let scope = Rc::new(RefCell::new(Scope::nested(scope.clone(), context)));
+    let scope = Rc::new(RefCell::new(Scope::nested(function.scope, execute_context)));
     let ret = match function.body {
         LanternFunctionBody::Native(fn_pointer) => fn_pointer(scope),
         LanternFunctionBody::Custom(block) => {
@@ -291,19 +293,21 @@ fn eval_fun(scope: ScopeMut, args: Vec<Expr>, function: LanternFunction) -> Resu
     Ok(ControlFlow::Continue(ret))
 }
 
-fn hoisted_context(
+fn hoisted_scope(
     hoisted_funs: HashMap<String, FunDefinition>,
     hoisted_recs: HashMap<String, RecDefinition>,
     scope: ScopeMut,
-) -> Result<RuntimeContext> {
-    let mut context = RuntimeContext::new();
+) -> Result<ScopeMut> {
+    let scope = Rc::new(RefCell::new(Scope::nested(scope.clone(), RuntimeContext::new())));
+    let scope_cloned = scope.clone();
+    let mut borrow = scope_cloned.borrow_mut();
     for (_, fun) in hoisted_funs {
-        context.add_function(gen_fun(fun, scope.clone())?);
+        borrow.add_function(gen_fun(fun, scope.clone())?);
     };
     for (_, rec) in hoisted_recs {
-        context.add_record(Rc::new(gen_rec(rec, scope.clone())?));
+        borrow.add_record(Rc::new(gen_rec(rec, scope.clone())?));
     };
-    Ok(context)
+    Ok(scope)
 }
 
 fn in_block(in_var: LanternValue, block: Block, scope: ScopeMut) -> Result<LanternValue> {
