@@ -1,0 +1,14 @@
+rec Both(a: any, b: any) {
+  fun is_eq(): bool {
+    ret self.a == self.b
+  }
+}
+
+val both: Both = Both::(10, 'hi')
+
+assert_eq(both, Both::(10, 'hi'))
+assert_eq(both.a, 10)
+assert_eq(both.b, 'hi')
+assert(!both.is_eq())
+assert(Both::(5, 5).is_eq())
+
