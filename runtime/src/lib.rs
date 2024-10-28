@@ -291,12 +291,16 @@ fn eval_fun(scope: ScopeMut, args: Vec<Expr>, function: LanternFunction) -> Resu
     Ok(ControlFlow::Continue(ret))
 }
 
-fn hoisted_context(hoisted_funs: Vec<FunDefinition>, hoisted_recs: Vec<RecDefinition>, scope: ScopeMut) -> Result<RuntimeContext> {
+fn hoisted_context(
+    hoisted_funs: HashMap<String, FunDefinition>,
+    hoisted_recs: HashMap<String, RecDefinition>,
+    scope: ScopeMut,
+) -> Result<RuntimeContext> {
     let mut context = RuntimeContext::new();
-    for fun in hoisted_funs {
+    for (_, fun) in hoisted_funs {
         context.add_function(gen_fun(fun, scope.clone())?);
     };
-    for rec in hoisted_recs {
+    for (_, rec) in hoisted_recs {
         context.add_record(Rc::new(gen_rec(rec, scope.clone())?));
     };
     Ok(context)

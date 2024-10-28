@@ -397,8 +397,8 @@ impl Read<TokenStream, Diagnostics> for ValAssignment {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Block {
     pub stmts: Vec<Stmt>,
-    pub hoisted_funs: Vec<FunDefinition>,
-    pub hoisted_recs: Vec<RecDefinition>,
+    pub hoisted_funs: HashMap<String, FunDefinition>,
+    pub hoisted_recs: HashMap<String, RecDefinition>,
 }
 
 impl Read<TokenStream, Diagnostics> for Block {
@@ -423,8 +423,8 @@ fn read_group_delimiter(stream: &mut TokenStream, delimiter: Delimiter) -> Resul
 
 pub fn to_stmts(mut stream: TokenStream) -> Result<Block, Diagnostics> {
     let mut stmts = Vec::new();
-    let mut hoisted_funs = Vec::new();
-    let mut hoisted_recs = Vec::new();
+    let mut hoisted_funs = HashMap::new();
+    let mut hoisted_recs = HashMap::new();
 
     loop {
         stream.skip_while(|token| matches!(token, Token::Newline(_)));
@@ -432,8 +432,18 @@ pub fn to_stmts(mut stream: TokenStream) -> Result<Block, Diagnostics> {
         if stream.get().is_none() { break; }
 
         match Stmt::read(&mut stream) {
-            Ok(Stmt::FunDefinition(fun_def)) => hoisted_funs.push(fun_def),
-            Ok(Stmt::RecDefinition(rec_def)) => hoisted_recs.push(rec_def),
+            Ok(Stmt::FunDefinition(fun_def)) => {
+                if hoisted_funs.contains_key(&fun_def.ident.name) {
+                    return Err(diagnostic!(Error, fun_def.ident.span, "function already defined").into());
+                };
+                hoisted_funs.insert(fun_def.ident.name.clone(), fun_def);
+            },
+            Ok(Stmt::RecDefinition(rec_def)) => {
+                if hoisted_recs.contains_key(&rec_def.ident.name) {
+                    return Err(diagnostic!(Error, rec_def.ident.span, "record already defined").into());
+                };
+                hoisted_recs.insert(rec_def.ident.name.clone(), rec_def);
+            },
             Ok(stmt) => stmts.push(stmt),
             Err(err) => return Err(err),
         }
