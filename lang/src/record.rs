@@ -150,11 +150,18 @@ impl LanternRecordFrame {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct LanternCustomRecord {
     pub r#type: LanternType,
     pub fields: HashMap<String, LanternValue>,
     pub methods: HashMap<String, LanternMethod>,
+}
+
+impl PartialEq for LanternCustomRecord {
+    fn eq(&self, other: &Self) -> bool {
+        self.r#type == other.r#type &&
+            self.fields == other.fields
+    }
 }
 
 impl Display for LanternCustomRecord {
