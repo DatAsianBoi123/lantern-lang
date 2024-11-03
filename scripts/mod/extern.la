@@ -1,0 +1,10 @@
+fun some_external_function() {
+  print('hi from extern!')
+  print('i can also print another function in this module:')
+  a()
+}
+
+fun a() {
+  print('from a')
+}
+

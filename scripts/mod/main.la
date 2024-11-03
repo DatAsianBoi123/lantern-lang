@@ -1,0 +1,6 @@
+mod extern
+
+print('hi there!')
+
+extern@some_external_function()
+
