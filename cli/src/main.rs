@@ -1,7 +1,7 @@
 use std::{fs::File, process::ExitCode, time::Instant};
 
 use clap::Parser;
-use lantern::{builtin, parse::{ast::to_stmts, read::{FileStream, TokenStream}, tokenizer::tokenize}, runtime};
+use lantern::{builtin, parse::{ast::parse, read::{FileStream, TokenStream}, tokenizer::tokenize}, runtime};
 
 #[derive(Parser, Debug, Clone)]
 #[command(name = "LanternLang")]
@@ -44,8 +44,8 @@ fn main() -> ExitCode {
         println!("parsing into ast...")
     }
     let before = Instant::now();
-    let block = match to_stmts(TokenStream::new(tokens)) {
-        Ok(stmts) => stmts,
+    let ast = match parse(TokenStream::new(tokens)) {
+        Ok(ast) => ast,
         Err(err) => {
             eprintln!("{err}");
             return ExitCode::FAILURE;
@@ -53,16 +53,16 @@ fn main() -> ExitCode {
     };
 
     if verbose {
-        if very_verbose { println!("{block:#?}"); };
+        if very_verbose { println!("{ast:#?}"); };
         println!("parsing took {:?}", Instant::now().duration_since(before));
         println!();
     }
 
     println!("executing {file_name}...");
 
-    let scope = builtin::global_scope();
+    let context = builtin::global_context();
 
-    if let Err(err) = runtime::execute(block, scope) {
+    if let Err(err) = runtime::run(ast, file_name, context) {
         eprintln!("{err}");
         ExitCode::FAILURE
     } else {

@@ -1,11 +1,9 @@
-use std::{cell::RefCell, rc::Rc};
-
-use lantern_lang::{error::RuntimeError, record::LanternAny, runtime_error, scope::{RuntimeContext, Scope}, LanternValue, LanternVariable, ScopeMut};
+use lantern_lang::{error::RuntimeError, record::LanternAny, runtime_error, scope::RuntimeContext, LanternValue, LanternVariable};
 use lantern_macros::lantern_fun;
 
 pub mod op;
 
-pub fn global_scope() -> ScopeMut {
+pub fn global_context() -> RuntimeContext {
     let mut context = RuntimeContext::new();
     context
         .add_variable(inf())
@@ -15,8 +13,7 @@ pub fn global_scope() -> ScopeMut {
         .add_function(assert())
         .add_function(assert_eq())
         .add_function(assert_neq());
-
-    Rc::new(RefCell::new(Scope::new(context)))
+    context
 }
 
 pub fn inf() -> LanternVariable {

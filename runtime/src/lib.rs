@@ -1,8 +1,8 @@
-use std::{cell::RefCell, collections::HashMap, ops::ControlFlow, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, fs::File, ops::ControlFlow, path::Path, rc::Rc};
 
 use lantern_builtin::op::{perform_binary_op, perform_unary_op};
-use lantern_lang::{error::{InvalidReturnType, MismatchedTypes, RuntimeError, UnknownItem}, record::{LanternMethod, LanternRecordFrame}, runtime_error, scope::{RuntimeContext, Scope}, LanternFunction, LanternFunctionArg, LanternFunctionBody, LanternValue, LanternVariable, ReturnType, ScopeMut};
-use lantern_parse::{ast::{expr::{AccessField, BinaryOperation, Branch, CallMethod, CoerceBlock, Expr, FunCall, NewRec, PipeBlock, UnaryOperation}, Block, FunArgs, FunDefinition, IfBranch, IfStatement, LanternType, LoopStatement, RecDefinition, Ret, Stmt, ValAssignment, ValBinding, WhileStatement}, error::ExpectedError, read::{ItemStream, TokenStream}, tokenizer::{Ident, Literal}};
+use lantern_lang::{error::{InvalidReturnType, MismatchedTypes, RuntimeError, UnknownItem}, module::LanternModule, record::{LanternMethod, LanternRecordFrame}, runtime_error, scope::{RuntimeContext, Scope}, LanternFunction, LanternFunctionArg, LanternFunctionBody, LanternValue, LanternVariable, ReturnType, ScopeMut};
+use lantern_parse::{ast::{expr::{AccessField, BinaryOperation, Branch, CallMethod, CallModuleFunction, CoerceBlock, Expr, FunCall, NewRec, PipeBlock, UnaryOperation}, Block, FunArgs, FunDefinition, IfBranch, IfStatement, LanternType, LoopStatement, RecDefinition, Ret, Stmt, ValAssignment, ValBinding, WhileStatement, AST}, error::ExpectedError, read::{FileStream, ItemStream, TokenStream}, tokenizer::{Ident, Literal}};
 
 pub type Result<T> = std::result::Result<T, RuntimeError>;
 
@@ -22,6 +22,33 @@ macro_rules! eval_or_break {
             br @ ControlFlow::Break(_) => return Ok(br),
         }
     }};
+}
+
+pub fn run(ast: AST, file_path: impl AsRef<Path>, context: RuntimeContext) -> Result<ScopeMut> {
+    let parent = file_path.as_ref().parent().expect("path has a parent").to_owned();
+    let mut modules = HashMap::new();
+
+    for r#use in ast.mods {
+        let mut path = parent.clone();
+        path.push(r#use.file.name.clone() + ".la");
+        let file = File::open(path.clone()).map_err(|_| runtime_error!("file `{}` does not exist", r#use.file))?;
+
+        let ast = lantern_parse::tokenizer::tokenize(FileStream::new(file)
+            .map_err(|e| RuntimeError::new(format!("error occurred when reading file {}: {e}", r#use.file)))?)
+            .and_then(|tokens| lantern_parse::ast::parse(TokenStream::new(tokens)))
+            .map_err(|e| RuntimeError::new(format!("error occurred when loading module {}: {e}", r#use.file)))?;
+
+        // BUG: circlular mods causes stack overflow
+        let scope = run(ast, path, context.clone())?;
+        let module = LanternModule { name: r#use.file.name, scope };
+        modules.insert(module.name.clone(), module);
+    };
+
+    let head = Scope::Head { modules };
+    let scope = Rc::new(RefCell::new(Scope::Context { parent: Rc::new(RefCell::new(head)), context }));
+    let module_context = hoisted_scope(ast.block.hoisted_funs.clone(), ast.block.hoisted_recs.clone(), scope.clone());
+    execute(ast.block, scope)?;
+    module_context
 }
 
 pub fn execute(Block { stmts, hoisted_funs, hoisted_recs }: Block, scope: ScopeMut) -> Result<ReturnType> {
@@ -162,6 +189,14 @@ pub fn eval_expr(expr: Expr, scope: ScopeMut) -> Result<ControlFlow<ReturnType, 
             context.add_variable(LanternVariable::new("self", callee));
             eval_fun(scope.clone(), args, method.function, context)
         },
+        Expr::CallModuleFunction(CallModuleFunction {
+            module: Ident { name, .. },
+            fun_call: FunCall { ident: Ident { name: fun_name, .. }, args },
+        }) => {
+            let module = scope.borrow().module(&name).ok_or_else(|| RuntimeError::new(UnknownItem::Module))?;
+            let function = module.scope.borrow().function(&fun_name).ok_or_else(|| RuntimeError::new(UnknownItem::Function))?;
+            eval_fun(scope.clone(), args, function, RuntimeContext::new())
+        },
         Expr::PipeBlock(PipeBlock { base, block }) => {
             let base = eval_or_break!(*base, scope.clone());
             let value = match base {
@@ -256,7 +291,7 @@ fn gen_rec(RecDefinition { ident, fields, methods, private_init }: RecDefinition
 }
 
 fn eval_fun(
-    scope: ScopeMut,
+    args_scope: ScopeMut,
     args: Vec<Expr>,
     function: LanternFunction,
     mut execute_context: RuntimeContext,
@@ -268,7 +303,7 @@ fn eval_fun(
     };
 
     for (expr, arg) in args.into_iter().zip(fun_args) {
-        let value = eval_or_break!(expr, scope.clone());
+        let value = eval_or_break!(expr, args_scope.clone());
         if !value.r#type().applies_to(&arg.r#type) {
             return Err(RuntimeError::new(MismatchedTypes(arg.r#type, value.r#type())));
         };

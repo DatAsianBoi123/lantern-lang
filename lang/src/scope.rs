@@ -1,6 +1,6 @@
 use std::{cell::RefCell, collections::{hash_map::Entry, HashMap}, rc::Rc};
 
-use crate::{error::{MismatchedTypes, RuntimeError, UnknownItem}, record::LanternRecordFrame, LanternFunction, LanternValue, LanternVariable, ScopeMut};
+use crate::{error::{MismatchedTypes, RuntimeError, UnknownItem}, module::LanternModule, record::LanternRecordFrame, LanternFunction, LanternValue, LanternVariable, ScopeMut};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct RuntimeContext {
@@ -55,15 +55,21 @@ pub enum Scope {
         parent: ScopeMut,
         context: RuntimeContext,
     },
-    Head,
+    Head {
+        modules: HashMap<String, LanternModule>,
+    },
 }
 
 impl Scope {
     pub fn new(context: RuntimeContext) -> Self {
-        Scope::Context {
-            parent: Rc::new(RefCell::new(Scope::Head)),
+        Self::Context {
+            parent: Rc::new(RefCell::new(Scope::Head { modules: HashMap::new() })),
             context,
         }
+    }
+
+    pub fn with_blank_head() -> Self {
+        Self::Head { modules: HashMap::new() }
     }
 
     pub fn nested(parent: ScopeMut, context: RuntimeContext) -> Self {
@@ -112,6 +118,13 @@ impl Scope {
         if let Self::Context { context, .. } = self {
             context.add_record(record);
         } else { panic!("can't add function to Head scope") }
+    }
+
+    pub fn module(&self, name: &str) -> Option<LanternModule> {
+        match self {
+            Self::Context { parent, .. } => parent.clone().borrow().module(name),
+            Self::Head { modules } => modules.get(name).cloned(),
+        }
     }
 
     pub fn reassign_variable(&mut self, name: String, value: LanternValue) -> Result<(), RuntimeError> {

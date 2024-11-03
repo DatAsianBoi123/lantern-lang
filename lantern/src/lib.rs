@@ -1,6 +1,7 @@
-use std::{error::Error, fs::File, io::Read};
+use std::{error::Error, fs::File, io::Read, path::Path};
 
-use lantern_parse::{ast::to_stmts, read::{FileStream, TokenStream}, tokenizer::tokenize};
+use lantern_parse::{read::{FileStream, TokenStream}, tokenizer::tokenize};
+use parse::ast::parse;
 
 #[cfg(feature = "runtime")]
 pub extern crate lantern_runtime as runtime;
@@ -17,16 +18,13 @@ pub extern crate lantern_macros as macros;
 #[cfg(feature = "builtin")]
 pub extern crate lantern_builtin as builtin;
 
-pub fn run_file(file: &mut File) -> Result<(), Box<dyn Error>> {
+pub fn run(path: impl AsRef<Path>) -> Result<(), Box<dyn Error>> {
     let mut code = String::new();
-    file.read_to_string(&mut code)?;
-    run(code)
-}
+    File::open(&path)?.read_to_string(&mut code)?;
 
-pub fn run(code: String) -> Result<(), Box<dyn Error>> {
     let tokens = tokenize(FileStream::with_string(code))?;
-    let stmts = to_stmts(TokenStream::new(tokens))?;
-    lantern_runtime::execute(stmts, builtin::global_scope())?;
+    let ast = parse(TokenStream::new(tokens))?;
+    lantern_runtime::run(ast, path, builtin::global_context())?;
     Ok(())
 }
 

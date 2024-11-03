@@ -2,7 +2,7 @@ use std::{collections::VecDeque, fmt::{Display, Formatter}};
 
 use crate::{ast::read_group_delimiter, diagnostic, error::{Diagnostics, ExpectedError, InvalidTokenError, Location, Recoverable, Span, UnexpectedTokenError}, read::{ItemStream, Read, TokenStream}, tokenizer::{Delimiter, DoublePunct, DoublePunctKind, Group, Ident, Literal, Punct, PunctKind, Token}, try_ordered};
 
-use super::{can_read_double_punct, can_read_punct, read_delimited, read_double_punct, Block};
+use super::{can_read_double_punct, can_read_punct, read_delimited, read_double_punct, read_punct, Block};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
@@ -15,6 +15,8 @@ pub enum Expr {
 
     AccessField(AccessField),
     CallMethod(CallMethod),
+
+    CallModuleFunction(CallModuleFunction),
 
     PipeBlock(PipeBlock),
     CoerceBlock(CoerceBlock),
@@ -102,6 +104,7 @@ fn read_single(stream: &mut TokenStream) -> Result<Expr, Diagnostics> {
     try_ordered! {
         access_field = stream.read(), if AccessField::can_read_tokens(stream) => Expr::AccessField(access_field),
         call_method = stream.read(), if CallMethod::can_read_tokens(stream) => Expr::CallMethod(call_method),
+        call_mod_function = stream.read(), if CallModuleFunction::can_read_tokens(stream) => Expr::CallModuleFunction(call_mod_function),
         pipe_block = stream.read(), if PipeBlock::can_read_tokens(stream) => Expr::PipeBlock(pipe_block),
         coerce_block = stream.read(), if CoerceBlock::can_read_tokens(stream) => Expr::CoerceBlock(coerce_block),
         branch = stream.read(), if Branch::can_read_tokens(stream) => Expr::Branch(branch),
@@ -277,6 +280,34 @@ impl Read<TokenStream, Diagnostics> for CallMethod {
 
         stream.consume();
         Ok(Self { base: Box::new(TokenStream::new(left).read()?), fun_call: stream.read()? })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CallModuleFunction {
+    pub module: Ident,
+    pub fun_call: FunCall,
+}
+
+impl CallModuleFunction {
+    pub fn can_read_tokens(stream: &mut TokenStream) -> bool {
+        let first_is_ident = stream.get().is_some_and(|token| matches!(token, Token::Ident(_)));
+        stream.peek();
+        let can = first_is_ident && can_read_punct(stream, PunctKind::At);
+        stream.reset();
+        can
+    }
+}
+
+impl Read<TokenStream, Diagnostics> for CallModuleFunction {
+    fn read(stream: &mut TokenStream) -> Result<Self, Diagnostics> {
+        let module = stream.read()?;
+
+        read_punct(stream, PunctKind::At)?;
+
+        let fun_call = stream.read()?;
+
+        Ok(Self { module, fun_call })
     }
 }
 

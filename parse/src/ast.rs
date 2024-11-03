@@ -2,7 +2,7 @@ use std::{collections::{HashMap, VecDeque}, fmt::{Display, Formatter}};
 
 use expr::Expr;
 
-use crate::{diagnostic, error::{Diagnostics, ExpectedError, Recoverable}, read::{ItemStream, Read, TokenStream}, tokenizer::{Delimiter, DoublePunct, DoublePunctKind, Group, Ident, Keyword, KeywordKind, Punct, PunctKind, Token}, try_ordered};
+use crate::{diagnostic, error::{Diagnostics, ExpectedError, Recoverable, Span}, read::{ItemStream, Read, TokenStream}, tokenizer::{Delimiter, DoublePunct, DoublePunctKind, Group, Ident, Keyword, KeywordKind, Punct, PunctKind, Token}, try_ordered};
 
 pub mod expr;
 
@@ -39,6 +39,7 @@ impl Read<TokenStream, Diagnostics> for Stmt {
     }
 }
 
+// TODO: move to lang after generics
 #[derive(Debug, Clone, PartialEq)]
 pub enum LanternType {
     String,
@@ -399,6 +400,29 @@ impl Read<TokenStream, Diagnostics> for ValAssignment {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Module {
+    pub file: Ident,
+    // TODO: span covers use keyword as well
+    pub file_span: Span,
+}
+
+impl Module {
+    pub fn can_read_tokens(stream: &mut TokenStream) -> bool {
+        can_read_keyword(stream, KeywordKind::Mod)
+    }
+}
+
+impl Read<TokenStream, Diagnostics> for Module {
+    fn read(stream: &mut TokenStream) -> Result<Self, Diagnostics> {
+        read_keyword(stream, KeywordKind::Mod)?;
+
+        let file: Ident = stream.read()?;
+
+        Ok(Self { file_span: file.span, file })
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Block {
     pub stmts: Vec<Stmt>,
@@ -411,6 +435,56 @@ impl Read<TokenStream, Diagnostics> for Block {
         read_group_delimiter(stream, Delimiter::Brace)
             .and_then(|group| to_stmts(TokenStream::new(group.tokens)))
     }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct AST {
+    pub mods: Vec<Module>,
+    pub block: Block,
+}
+
+// TODO: duplicate code
+pub fn parse(mut stream: TokenStream) -> Result<AST, Diagnostics> {
+    let mut stmts = Vec::new();
+    let mut hoisted_funs = HashMap::new();
+    let mut hoisted_recs = HashMap::new();
+
+    let mut uses = Vec::new();
+    let mut past_uses = false;
+
+    loop {
+        stream.skip_while(|token| matches!(token, Token::Newline(_)));
+
+        if stream.get().is_none() { break; }
+
+        if !past_uses {
+            if Module::can_read_tokens(&mut stream) {
+                uses.push(stream.read()?);
+                continue;
+            } else {
+                past_uses = true;
+            }
+        }
+
+        match Stmt::read(&mut stream) {
+            Ok(Stmt::FunDefinition(fun_def)) => {
+                if hoisted_funs.contains_key(&fun_def.ident.name) {
+                    return Err(diagnostic!(Error, fun_def.ident.span, "function already defined").into());
+                };
+                hoisted_funs.insert(fun_def.ident.name.clone(), fun_def);
+            },
+            Ok(Stmt::RecDefinition(rec_def)) => {
+                if hoisted_recs.contains_key(&rec_def.ident.name) {
+                    return Err(diagnostic!(Error, rec_def.ident.span, "record already defined").into());
+                };
+                hoisted_recs.insert(rec_def.ident.name.clone(), rec_def);
+            },
+            Ok(stmt) => stmts.push(stmt),
+            Err(err) => return Err(err),
+        }
+    }
+
+    Ok(AST { mods: uses, block: Block { stmts, hoisted_funs, hoisted_recs } })
 }
 
 pub fn to_stmts(mut stream: TokenStream) -> Result<Block, Diagnostics> {

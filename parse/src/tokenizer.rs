@@ -274,6 +274,7 @@ pub enum KeywordKind {
     Cont,
     Ret,
     Rec,
+    Mod,
 }
 
 impl Read<FileStream, Diagnostics> for KeywordKind {
@@ -304,6 +305,7 @@ impl Display for KeywordKind {
             Self::Cont => "cont",
             Self::Ret => "ret",
             Self::Rec => "rec",
+            Self::Mod => "mod",
         };
         f.write_str(name)
     }
@@ -324,6 +326,7 @@ impl FromStr for KeywordKind {
             "cont" => Ok(Self::Cont),
             "ret" => Ok(Self::Ret),
             "rec" => Ok(Self::Rec),
+            "mod" => Ok(Self::Mod),
             _ => Err(()),
         }
     }
@@ -486,6 +489,7 @@ pub enum PunctKind {
     Comma,
     Period,
     Bang,
+    At,
 
     Colon,
 
@@ -514,6 +518,7 @@ impl Read<FileStream, Diagnostics> for PunctKind {
                 ',' => Some(S::Comma),
                 '.' => Some(S::Period),
                 '!' => Some(S::Bang),
+                '@' => Some(S::At),
 
                 ':' => Some(S::Colon),
 
@@ -543,6 +548,7 @@ impl Display for PunctKind {
             Self::Comma => ',',
             Self::Period => '.',
             Self::Bang => '!',
+            Self::At => '@',
 
             Self::Colon => ':',
 

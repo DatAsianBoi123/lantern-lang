@@ -6,6 +6,7 @@ use record::{LanternAny, LanternCustomRecord, LanternMethod, LanternRecord};
 use scope::Scope;
 
 pub mod record;
+pub mod module;
 pub mod scope;
 pub mod error;
 

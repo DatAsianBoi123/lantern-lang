@@ -41,6 +41,7 @@ pub enum UnknownItem {
     Field,
     Method,
     Record,
+    Module,
 }
 
 impl Display for UnknownItem {
@@ -52,6 +53,7 @@ impl Display for UnknownItem {
             Self::Field => "field",
             Self::Method => "method",
             Self::Record => "record",
+            Self::Module => "module",
         };
         write!(f, "unknown {item}")
     }

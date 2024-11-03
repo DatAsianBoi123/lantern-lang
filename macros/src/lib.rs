@@ -84,7 +84,7 @@ pub fn lantern_fun(_: TokenStream, item: TokenStream) -> TokenStream {
                 args,
                 ret_type: <#output as ::lantern_lang::record::LanternRecord>::r#type(),
                 body: ::lantern_lang::LanternFunctionBody::Native(inner),
-                scope: ::std::rc::Rc::new(::std::cell::RefCell::new(::lantern_lang::scope::Scope::Head)),
+                scope: ::std::rc::Rc::new(::std::cell::RefCell::new(::lantern_lang::scope::Scope::with_blank_head())),
             }
         }
     }.into()

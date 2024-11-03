@@ -70,7 +70,7 @@ macro_rules! impl_type {
                                     args,
                                     ret_type: <$fn_ret_type as LanternRecord>::r#type(),
                                     body,
-                                    scope: Rc::new(RefCell::new(Scope::Head)),
+                                    scope: Rc::new(RefCell::new(Scope::with_blank_head())),
                                 }
                             })
                         },

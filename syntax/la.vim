@@ -1,6 +1,6 @@
 sy case match
 
-sy keyword laKeyword val fun ret break cont native
+sy keyword laKeyword val fun ret break cont native mod
 sy keyword laConditional if else
 sy keyword laRepeat loop while
 sy keyword laBoolean true false
