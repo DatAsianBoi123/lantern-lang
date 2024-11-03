@@ -136,14 +136,14 @@ impl core::fmt::Debug for LanternFunctionBody {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum ReturnType {
-    Return(LanternValue),
+pub enum ReturnType<T> {
+    Return(T),
     Break,
     Continue,
     None,
 }
 
-impl ReturnType {
+impl<T> ReturnType<T> {
     pub fn keyword(&self) -> Option<KeywordKind> {
         match self {
             Self::Return(_) => Some(KeywordKind::Ret),

@@ -51,7 +51,7 @@ pub fn run(ast: AST, file_path: impl AsRef<Path>, context: RuntimeContext) -> Re
     module_context
 }
 
-pub fn execute(Block { stmts, hoisted_funs, hoisted_recs }: Block, scope: ScopeMut) -> Result<ReturnType> {
+pub fn execute(Block { stmts, hoisted_funs, hoisted_recs }: Block, scope: ScopeMut) -> Result<ReturnType<LanternValue>> {
     let scope = hoisted_scope(hoisted_funs, hoisted_recs, scope)?;
 
     for stmt in stmts {
@@ -119,7 +119,7 @@ pub fn execute(Block { stmts, hoisted_funs, hoisted_recs }: Block, scope: ScopeM
     Ok(ReturnType::None)
 }
 
-pub fn eval_expr(expr: Expr, scope: ScopeMut) -> Result<ControlFlow<ReturnType, LanternValue>> {
+pub fn eval_expr(expr: Expr, scope: ScopeMut) -> Result<ControlFlow<ReturnType<LanternValue>, LanternValue>> {
     match expr {
         Expr::Group(expr) => eval_expr(*expr, scope),
         Expr::FunCall(FunCall { ident: Ident { name, .. }, args }) => {
@@ -243,7 +243,7 @@ pub fn eval_expr(expr: Expr, scope: ScopeMut) -> Result<ControlFlow<ReturnType, 
     }
 }
 
-fn eval_if_branch(branch: IfBranch, scope: ScopeMut) -> Result<ReturnType> {
+fn eval_if_branch(branch: IfBranch, scope: ScopeMut) -> Result<ReturnType<LanternValue>> {
     match branch {
         IfBranch::Elif(condition, block, branch) => {
             match (eval_or_ret!(condition, scope.clone()), branch) {
@@ -295,7 +295,7 @@ fn eval_fun(
     args: Vec<Expr>,
     function: LanternFunction,
     mut execute_context: RuntimeContext,
-) -> Result<ControlFlow<ReturnType, LanternValue>> {
+) -> Result<ControlFlow<ReturnType<LanternValue>, LanternValue>> {
     let fun_args = function.args;
 
     if args.len() != fun_args.len() {
@@ -357,7 +357,7 @@ fn in_block(in_var: LanternValue, block: Block, scope: ScopeMut) -> Result<Lante
     }
 }
 
-fn in_block_ret(in_var: LanternValue, block: Block, scope: ScopeMut) -> Result<ReturnType> {
+fn in_block_ret(in_var: LanternValue, block: Block, scope: ScopeMut) -> Result<ReturnType<LanternValue>> {
     let mut context = RuntimeContext::new();
     context.add_variable(LanternVariable { name: "in".to_string(), r#type: in_var.r#type(), value: in_var });
 

@@ -22,9 +22,9 @@ impl RuntimeError {
 }
 
 #[derive(thiserror::Error, Debug, Clone, PartialEq)]
-pub struct InvalidReturnType(pub ReturnType);
+pub struct InvalidReturnType<T>(pub ReturnType<T>);
 
-impl Display for InvalidReturnType {
+impl<T> Display for InvalidReturnType<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match &self.0 {
             ReturnType::None => f.write_str("expected return"),
