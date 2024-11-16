@@ -250,7 +250,7 @@ impl Read<TokenStream, Diagnostics> for RecDefinition {
 pub struct IfStatement {
     pub condition: Expr,
     pub block: Block,
-    pub branch: Option<IfBranch>,
+    pub branch: Option<Box<IfBranch>>,
 }
 
 impl IfStatement {
@@ -269,7 +269,7 @@ impl Read<TokenStream, Diagnostics> for IfStatement {
         stream.skip_while(|token| matches!(token, Token::Newline(_)));
         let branch = if IfBranch::can_read_token(stream) {
             match stream.read() {
-                Ok(branch) => Some(branch),
+                Ok(branch) => Some(Box::new(branch)),
                 Err(err) => return Err(err),
             }
         } else {
@@ -282,7 +282,7 @@ impl Read<TokenStream, Diagnostics> for IfStatement {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum IfBranch {
-    Elif(Expr, Block, Option<Box<IfBranch>>),
+    Elif(IfStatement),
     Else(Block),
 }
 
@@ -299,7 +299,7 @@ impl Read<TokenStream, Diagnostics> for IfBranch {
         stream.skip_while(|token| matches!(token, Token::Newline(_)));
         if !IfStatement::can_read_tokens(stream) { return Ok(IfBranch::Else(stream.read()?)); };
         match stream.read() {
-            Ok(IfStatement { condition, block, branch }) => Ok(IfBranch::Elif(condition, block, branch.map(Box::new))),
+            Ok(statement) => Ok(IfBranch::Elif(statement)),
             Err(err) => Err(err),
         }
     }

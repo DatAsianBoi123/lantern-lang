@@ -69,8 +69,8 @@ pub fn execute(Block { stmts, hoisted_funs, hoisted_recs }: Block, scope: ScopeM
 
                 scope.borrow_mut().add_variable(LanternVariable { name, r#type, value });
             },
-            Stmt::If(IfStatement { condition, block, branch }) => {
-                match eval_if_branch(IfBranch::Elif(condition, block, branch.map(Box::new)), scope.clone())? {
+            Stmt::If(if_statement) => {
+                match eval_if_branch(IfBranch::Elif(if_statement), scope.clone())? {
                     ReturnType::None => {},
                     ret_type => return Ok(ret_type),
                 }
@@ -248,7 +248,7 @@ pub fn eval_expr(expr: Expr, scope: ScopeMut) -> Result<ControlFlow<ReturnType<L
 
 fn eval_if_branch(branch: IfBranch, scope: ScopeMut) -> Result<ReturnType<LanternValue>> {
     match branch {
-        IfBranch::Elif(condition, block, branch) => {
+        IfBranch::Elif(IfStatement { condition, block, branch }) => {
             match (eval_or_ret!(condition, scope.clone()), branch) {
                 (LanternValue::Bool(bool), _) if bool => execute(block, scope),
                 (LanternValue::Bool(_), Some(branch)) => eval_if_branch(*branch, scope),
