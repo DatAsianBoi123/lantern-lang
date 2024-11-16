@@ -47,7 +47,10 @@ pub fn run(ast: AST, file_path: impl AsRef<Path>, context: RuntimeContext) -> Re
     let head = Scope::Head { modules };
     let scope = Rc::new(RefCell::new(Scope::Context { parent: Rc::new(RefCell::new(head)), context }));
     let module_context = hoisted_scope(ast.block.hoisted_funs.clone(), ast.block.hoisted_recs.clone(), scope.clone());
-    execute(ast.block, scope)?;
+    match execute(ast.block,scope)? {
+        ret @ ReturnType::Break | ret @ ReturnType::Continue => return Err(RuntimeError::new(InvalidReturnType(ret))),
+        _ => {},
+    };
     module_context
 }
 
