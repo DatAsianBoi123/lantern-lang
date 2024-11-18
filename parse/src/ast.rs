@@ -40,7 +40,7 @@ impl Read<TokenStream, Diagnostics> for Stmt {
 }
 
 // TODO: move to lang after generics
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LanternType {
     String,
     Num,
