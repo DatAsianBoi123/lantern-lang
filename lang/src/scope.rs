@@ -134,7 +134,7 @@ impl Scope {
             match context.variables.entry(name.clone()) {
                 Entry::Occupied(mut entry) => {
                     let expected_type = &entry.get().r#type;
-                    if !expected_type.applies_to(&value.r#type()) {
+                    if !value.r#type().applies_to(expected_type) {
                         return Err(RuntimeError::new(MismatchedTypesError { expected: expected_type.clone(), found: value.r#type() }));
                     };
 
