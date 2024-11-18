@@ -2,6 +2,8 @@ use std::{error::Error, fmt::{Display, Formatter}};
 
 use itertools::Itertools;
 
+use crate::ast::LanternType;
+
 #[macro_export]
 macro_rules! diagnostic {
     ($kind: expr, $span: expr => $err: expr) => {{
@@ -140,6 +142,13 @@ pub struct ExpectedError(pub String);
 #[derive(thiserror::Error, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 #[error("invalid {0}")]
 pub struct InvalidTokenError(pub String);
+
+#[derive(thiserror::Error, Debug, Clone, PartialEq)]
+#[error("mismatched types, expected {expected}, but found {found}")]
+pub struct MismatchedTypesError {
+    pub expected: LanternType,
+    pub found: LanternType,
+}
 
 #[derive(thiserror::Error, Debug)]
 pub enum Recoverable<E: Error> {

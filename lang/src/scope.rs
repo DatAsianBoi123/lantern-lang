@@ -1,6 +1,8 @@
 use std::{cell::RefCell, collections::{hash_map::Entry, HashMap}, rc::Rc};
 
-use crate::{error::{MismatchedTypes, RuntimeError, UnknownItem}, module::LanternModule, record::LanternRecordFrame, LanternFunction, LanternValue, LanternVariable, ScopeMut};
+use lantern_parse::error::MismatchedTypesError;
+
+use crate::{error::{RuntimeError, UnknownItem}, module::LanternModule, record::LanternRecordFrame, LanternFunction, LanternValue, LanternVariable, ScopeMut};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct RuntimeContext {
@@ -133,7 +135,7 @@ impl Scope {
                 Entry::Occupied(mut entry) => {
                     let expected_type = &entry.get().r#type;
                     if !expected_type.applies_to(&value.r#type()) {
-                        return Err(RuntimeError::new(MismatchedTypes(expected_type.clone(), value.r#type())));
+                        return Err(RuntimeError::new(MismatchedTypesError { expected: expected_type.clone(), found: value.r#type() }));
                     };
 
                     entry.get_mut().value = value;

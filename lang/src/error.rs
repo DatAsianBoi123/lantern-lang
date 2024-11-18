@@ -1,6 +1,6 @@
 use std::{error::Error, fmt::{Display, Formatter}};
 
-use crate::{LanternType, ReturnType};
+use crate::ReturnType;
 
 #[macro_export]
 macro_rules! runtime_error {
@@ -58,8 +58,4 @@ impl Display for UnknownItem {
         write!(f, "unknown {item}")
     }
 }
-
-#[derive(thiserror::Error, Debug, Clone, PartialEq)]
-#[error("mismatched types: expected {0}, but got {1}")]
-pub struct MismatchedTypes(pub LanternType, pub LanternType);
 

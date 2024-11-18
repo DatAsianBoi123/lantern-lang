@@ -1,9 +1,9 @@
 use std::{cell::RefCell, collections::HashMap, fmt::{Display, Formatter}, rc::Rc};
 
 use itertools::Itertools;
-use lantern_parse::tokenizer::Ident;
+use lantern_parse::{error::MismatchedTypesError, tokenizer::Ident};
 
-use crate::{error::MismatchedTypes, runtime_error, Scope, LanternFunction, LanternFunctionArg, LanternFunctionBody, LanternType, LanternValue, RuntimeError, ScopeMut};
+use crate::{runtime_error, Scope, LanternFunction, LanternFunctionArg, LanternFunctionBody, LanternType, LanternValue, RuntimeError, ScopeMut};
 
 macro_rules! impl_type {
     ($ty: ty $( [ where $($g_ty: tt)* ] )? {
@@ -138,7 +138,7 @@ impl LanternRecordFrame {
             .zip(args)
             .map(|(field_arg, arg)| {
                 if !arg.r#type().applies_to(&field_arg.r#type) {
-                    return Err(RuntimeError::new(MismatchedTypes(field_arg.r#type.clone(), arg.r#type())));
+                    return Err(RuntimeError::new(MismatchedTypesError { expected: field_arg.r#type.clone(), found: arg.r#type() }));
                 };
 
                 Ok((field_arg.name.clone(), arg))

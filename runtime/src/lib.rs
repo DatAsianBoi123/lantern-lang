@@ -1,8 +1,8 @@
 use std::{cell::RefCell, collections::HashMap, fs::File, ops::ControlFlow, path::Path, rc::Rc};
 
 use lantern_builtin::op::{perform_binary_op, perform_unary_op};
-use lantern_lang::{error::{InvalidReturnType, MismatchedTypes, RuntimeError, UnknownItem}, module::LanternModule, record::{LanternMethod, LanternRecordFrame}, runtime_error, scope::{RuntimeContext, Scope}, LanternFunction, LanternFunctionArg, LanternFunctionBody, LanternValue, LanternVariable, ReturnType, ScopeMut};
-use lantern_parse::{ast::{expr::{AccessField, BinaryOperation, Branch, CallMethod, CallModuleFunction, CoerceBlock, Expr, FunCall, NewRec, PipeBlock, UnaryOperation}, Block, FunArgs, FunDefinition, IfBranch, IfStatement, LanternType, LoopStatement, RecDefinition, Ret, Stmt, ValAssignment, ValBinding, WhileStatement, AST}, error::ExpectedError, read::{FileStream, ItemStream, TokenStream}, tokenizer::{Ident, Literal}};
+use lantern_lang::{error::{InvalidReturnType, RuntimeError, UnknownItem}, module::LanternModule, record::{LanternMethod, LanternRecordFrame}, runtime_error, scope::{RuntimeContext, Scope}, LanternFunction, LanternFunctionArg, LanternFunctionBody, LanternValue, LanternVariable, ReturnType, ScopeMut};
+use lantern_parse::{ast::{expr::{AccessField, BinaryOperation, Branch, CallMethod, CallModuleFunction, CoerceBlock, Expr, FunCall, NewRec, PipeBlock, UnaryOperation}, Block, FunArgs, FunDefinition, IfBranch, IfStatement, LanternType, LoopStatement, RecDefinition, Ret, Stmt, ValAssignment, ValBinding, WhileStatement, AST}, error::{ExpectedError, MismatchedTypesError}, read::{FileStream, ItemStream, TokenStream}, tokenizer::{Ident, Literal}};
 
 pub type Result<T> = std::result::Result<T, RuntimeError>;
 
@@ -65,7 +65,9 @@ pub fn execute(Block { stmts, hoisted_funs, hoisted_recs }: Block, scope: ScopeM
             Stmt::ValBinding(ValBinding { ident: Ident { name, .. }, r#type, init }) => {
                 let value = eval_or_ret!(init, scope.clone());
 
-                if !value.r#type().applies_to(&r#type) { return Err(RuntimeError::new(MismatchedTypes(r#type, value.r#type()))) }
+                if !value.r#type().applies_to(&r#type) {
+                    return Err(RuntimeError::new(MismatchedTypesError { expected: r#type, found: value.r#type() }))
+                }
 
                 scope.borrow_mut().add_variable(LanternVariable { name, r#type, value });
             },
@@ -94,7 +96,7 @@ pub fn execute(Block { stmts, hoisted_funs, hoisted_recs }: Block, scope: ScopeM
                     // TODO: clones
                     let condition = match eval_or_ret!(condition.clone(), scope.clone()) {
                         LanternValue::Bool(condition) => condition,
-                        value => return Err(RuntimeError::new(MismatchedTypes(LanternType::Bool, value.r#type()))),
+                        value => return Err(RuntimeError::new(MismatchedTypesError { expected: LanternType::Bool, found: value.r#type() })),
                     };
 
                     if !condition { break; }
@@ -253,7 +255,7 @@ fn eval_if_branch(branch: IfBranch, scope: ScopeMut) -> Result<ReturnType<Lanter
                 (LanternValue::Bool(bool), _) if bool => execute(block, scope),
                 (LanternValue::Bool(_), Some(branch)) => eval_if_branch(*branch, scope),
                 (LanternValue::Bool(_), None) => Ok(ReturnType::None),
-                (value, _) => Err(RuntimeError::new(MismatchedTypes(LanternType::Bool, value.r#type()))),
+                (value, _) => Err(RuntimeError::new(MismatchedTypesError { expected: LanternType::Bool, found: value.r#type() })),
             }
         },
         IfBranch::Else(block) => execute(block, scope),
@@ -308,7 +310,7 @@ fn eval_fun(
     for (expr, arg) in args.into_iter().zip(fun_args) {
         let value = eval_or_break!(expr, args_scope.clone());
         if !value.r#type().applies_to(&arg.r#type) {
-            return Err(RuntimeError::new(MismatchedTypes(arg.r#type, value.r#type())));
+            return Err(RuntimeError::new(MismatchedTypesError { expected: arg.r#type, found: value.r#type() }));
         };
 
         execute_context.add_variable(LanternVariable::new(arg.name.to_string(), value));
@@ -326,7 +328,9 @@ fn eval_fun(
             }
         },
     }?;
-    if !ret.r#type().applies_to(&function.ret_type) { return Err(RuntimeError::new(MismatchedTypes(function.ret_type, ret.r#type()))); };
+    if !ret.r#type().applies_to(&function.ret_type) {
+        return Err(RuntimeError::new(MismatchedTypesError { expected: function.ret_type, found: ret.r#type() }));
+    };
 
     Ok(ControlFlow::Continue(ret))
 }
