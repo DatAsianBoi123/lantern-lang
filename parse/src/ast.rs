@@ -179,7 +179,7 @@ impl Read<TokenStream, Diagnostics> for FunDefinition {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunArgs {
     pub args: Vec<FunArg>,
 }
@@ -191,7 +191,7 @@ impl Read<TokenStream, Diagnostics> for FunArgs {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunArg {
     pub name: Ident,
     pub r#type: LanternType,
