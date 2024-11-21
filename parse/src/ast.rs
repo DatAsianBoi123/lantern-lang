@@ -150,7 +150,7 @@ impl Read<TokenStream, Diagnostics> for ValBinding {
 pub struct FunDefinition {
     pub ident: Ident,
     pub args: FunArgs,
-    pub ret: Option<LanternType>,
+    pub ret: LanternType,
     pub block: Block,
 }
 
@@ -170,8 +170,8 @@ impl Read<TokenStream, Diagnostics> for FunDefinition {
         let args = TokenStream::new(args_tokens).read()?;
 
         let ret = if read_punct(stream, PunctKind::Colon).is_ok() {
-            Some(stream.read()?)
-        } else { None };
+            stream.read()?
+        } else { LanternType::Nil };
 
         let block = stream.read()?;
 

@@ -273,14 +273,10 @@ fn gen_fun(FunDefinition { ident, args, ret, block }: FunDefinition, scope: Scop
     let args = gen_args(args, scope.clone())?;
 
     // TODO: check to make sure custom type exists
-    let ret_type = ret.map(Some)
-        .unwrap_or(Some(LanternType::Nil))
-        .ok_or_else(|| RuntimeError::new(UnknownItem::Type))?;
-
     Ok(LanternFunction {
         name: ident.name,
         args,
-        ret_type,
+        ret_type: ret,
         body: LanternFunctionBody::Custom(block),
         scope: scope.clone(),
     })
