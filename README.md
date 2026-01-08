@@ -1,3 +1,5 @@
+## This project has been archived and has gone through a full rewrite! Please navigate to https://github.com/DatAsianBoi123/lantern for the updated project
+
 # Lantern
 
 A modern, interpreted, statically typed scripting language, built from the ground-up using `Rust`.
